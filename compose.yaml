@@ -1,0 +1,29 @@
+name: scraper
+
+services:
+  quotes-toscrape:
+    build:
+      context: .
+      dockerfile: src/Scraper.QuotesToscrape/Dockerfile
+    image: scraper-quotes-toscrape
+    command: ["--schedule", "0 */6 * * *"] # every 6h on the hour
+    environment:
+      TZ: ${SCRAPER_TZ:-UTC}
+    volumes:
+      - scraper-data:/data
+    restart: unless-stopped
+
+  blocket:
+    build:
+      context: .
+      dockerfile: src/Scraper.Blocket/Dockerfile
+    image: scraper-blocket
+    command: ["--schedule", "0 6 * * *"] # daily at 06:00
+    environment:
+      TZ: ${SCRAPER_TZ:-UTC}
+    volumes:
+      - scraper-data:/data
+    restart: unless-stopped
+
+volumes:
+  scraper-data:

@@ -1,0 +1,5 @@
+**/bin/
+**/obj/
+.git/
+output.json
+output.md
