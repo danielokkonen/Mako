@@ -21,7 +21,7 @@ dotnet run --project src/Scraper.Host -- configs/<site>.yaml [snapshot.json | sn
 
 ### Database / containers
 
-- Connection string resolution: `SCRAPER_CONNECTION_STRING` env var wins; otherwise the local dev default (`Host=localhost;Port=5432;Username=scraper;Password=scraper;Database=scraper`). **Keyword form only** — Npgsql 10.x rejects URI format.
+- Connection string resolution: `SCRAPER_CONNECTION_STRING` env var wins; otherwise the local dev default (`Host=localhost;Port=5432;Username=user;Password=password;Database=scraper`). **Keyword form only** — Npgsql 10.x rejects URI format.
 - Local dev Postgres: `podman compose -f dev/compose.yaml up -d db` — **podman is not available in this shell** and cannot be exposed; assume the dev DB is already running (started outside the shell). If a run fails with `Database error:` instead, it isn't.
 - Prod: root `compose.yaml` = a `db` service (Postgres, own volume) + one service per config file sharing the `scraper-host` image (per-service command + env: `SCRAPER_CONNECTION_STRING`, `TZ` from `SCRAPER_TZ`). `podman compose up -d --build`.
 

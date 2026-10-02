@@ -42,7 +42,7 @@ dotnet run --project src/Scraper.Host -- configs/quotes.yaml [snapshot.json | sn
 
 ### Database connection
 
-- Local runs default to this machine's Postgres (`Host=localhost;Port=5432;Username=scraper;Password=scraper;Database=scraper`) — start it with `podman compose -f dev/compose.yaml up -d db`. No environment variable needed for local development.
+- Local runs default to this machine's Postgres (`Host=localhost;Port=5432;Username=user;Password=password;Database=scraper`) — start it with `podman compose -f dev/compose.yaml up -d db`. No environment variable needed for local development.
 - Override with the `SCRAPER_CONNECTION_STRING` env var. **Keyword form only** (`Host=db;Port=5432;Username=...;Password=...;Database=scraper`) — Npgsql 10.x rejects URI format (`postgres://…`). The prod `compose.yaml` sets it explicitly per service, pointing at its own Postgres container.
 
 ### Scheduling

@@ -3,13 +3,13 @@ services:
     image: postgres:18
     container_name: dev-db-postgres
     environment:
-      POSTGRES_USER: scraper
-      POSTGRES_PASSWORD: scraper
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
       POSTGRES_DB: scraper
     ports:
       - "5432:5432"
     volumes:
-      - dev-db:~/.local/share/containers/storage/volumes/dev-db/_data
+      - dev-db:/var/home/daniel/.local/share/containers/storage/volumes/dev-db/_data
 
 volumes:
   dev-db:

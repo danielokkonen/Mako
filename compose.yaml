@@ -4,8 +4,8 @@ services:
   db:
     image: docker.io/library/postgres:18
     environment:
-      POSTGRES_USER: scraper
-      POSTGRES_PASSWORD: scraper
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
       POSTGRES_DB: scraper
     volumes:
       - scraper-db:/var/lib/postgresql/data
@@ -23,7 +23,7 @@ services:
     command: ["configs/quotes.yaml", "--schedule", "0 */6 * * *"] # every 6h on the hour
     environment:
       TZ: ${SCRAPER_TZ:-UTC}
-      SCRAPER_CONNECTION_STRING: Host=db;Port=5432;Username=scraper;Password=scraper;Database=scraper
+      SCRAPER_CONNECTION_STRING: Host=db;Port=5432;Username=user;Password=password;Database=scraper
     depends_on:
       db:
         condition: service_healthy
@@ -34,7 +34,7 @@ services:
     command: ["configs/blocket.yaml", "--schedule", "0 6 * * *"] # daily at 06:00
     environment:
       TZ: ${SCRAPER_TZ:-UTC}
-      SCRAPER_CONNECTION_STRING: Host=db;Port=5432;Username=scraper;Password=scraper;Database=scraper
+      SCRAPER_CONNECTION_STRING: Host=db;Port=5432;Username=user;Password=password;Database=scraper
     depends_on:
       db:
         condition: service_healthy
