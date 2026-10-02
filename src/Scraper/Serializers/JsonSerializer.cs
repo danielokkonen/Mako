@@ -1,14 +1,17 @@
+using Scraper.Core.Extraction;
+
 namespace Scraper.Core.Serializers;
 
 public static class JsonSerializer
 {
-    public static string ToJson<T>(IReadOnlyList<T> items)
+    /// <summary>The snapshot as a JSON array of the item documents, exactly as stored.</summary>
+    public static string ToJson(IReadOnlyList<ScrapedItem> items)
     {
         var options = new System.Text.Json.JsonSerializerOptions
         {
             WriteIndented = true,
-            PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
         };
-        return System.Text.Json.JsonSerializer.Serialize(items, options);
+
+        return System.Text.Json.JsonSerializer.Serialize(items.Select(i => i.Fields).ToList(), options);
     }
 }

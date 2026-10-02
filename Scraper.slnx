@@ -1,7 +1,6 @@
 <Solution>
   <Folder Name="/src/">
-    <Project Path="src/Scraper.Blocket/Scraper.Blocket.csproj" />
-    <Project Path="src/Scraper.QuotesToscrape/Scraper.QuotesToscrape.csproj" />
+    <Project Path="src/Scraper.Host/Scraper.Host.csproj" />
     <Project Path="src/Scraper/Scraper.csproj" />
   </Folder>
 </Solution>

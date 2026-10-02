@@ -4,6 +4,9 @@ namespace Scraper.Core.Scheduling;
 
 public static class CronScheduler
 {
+    /// <summary>The longest single wait; longer gaps are waited in chunks of this size.</summary>
+    private static readonly TimeSpan MaxDelay = TimeSpan.FromMilliseconds(int.MaxValue / 2);
+
     public static async Task RunAsync(string cronExpression, Func<CancellationToken, Task<int>> runOnce, CancellationToken cancellationToken)
     {
         var expression = CronExpression.Parse(cronExpression);
@@ -35,14 +38,23 @@ public static class CronScheduler
                        ?? throw new InvalidOperationException($"No future occurrence found for '{cronExpression}'.");
             Console.WriteLine($"[schedule] Next run at {next.LocalDateTime:yyyy-MM-dd HH:mm:ss} ({cronExpression})");
 
+            // Task.Delay caps at ~24.8 days, so wait in chunks: a cron whose next occurrence is further out
+            // (e.g. yearly) must still idle until then instead of throwing.
             using var waitCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            try
+            var remaining = next - DateTimeOffset.Now;
+            while (remaining > TimeSpan.Zero && !cancellationToken.IsCancellationRequested)
             {
-                await Task.Delay(next - DateTimeOffset.Now, waitCts.Token);
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                break;
+                var chunk = remaining < MaxDelay ? remaining : MaxDelay;
+                try
+                {
+                    await Task.Delay(chunk, waitCts.Token);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    break;
+                }
+
+                remaining -= chunk;
             }
         }
 

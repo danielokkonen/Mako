@@ -10,15 +10,12 @@
   <ItemGroup>
     <PackageReference Include="AngleSharp" Version="1.8.2" />
     <PackageReference Include="Cronos" Version="0.13.0" />
-    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.12" />
+    <PackageReference Include="JsonCons.JsonPath" Version="1.1.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.12" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.12">
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-      <PrivateAssets>all</PrivateAssets>
-    </PackageReference>
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.12" />
+    <PackageReference Include="Npgsql" Version="10.0.3" />
     <PackageReference Include="System.CommandLine" Version="2.0.12" />
     <PackageReference Include="Polly.Core" Version="8.8.0" />
+    <PackageReference Include="YamlDotNet" Version="18.1.0" />
   </ItemGroup>
 
 </Project>

@@ -1,13 +1,14 @@
-using System.Reflection;
+using Scraper.Core.Extraction;
 
 namespace Scraper.Core.Serializers;
 
 public static class MarkdownSerializer
 {
-    public static string ToMarkdown<T>(IReadOnlyList<T> items, string sourceUrl)
+    /// <summary>
+    /// Renders the item documents: one section per item, one bullet per field in declared order.
+    /// </summary>
+    public static string ToMarkdown(IReadOnlyList<ScrapedItem> items, string sourceUrl)
     {
-        var props = typeof(T).GetProperties(BindingFlags.Public | BindingFlags.Instance);
-
         var sb = new StringBuilder();
         sb.AppendLine($"# Scraped results — {sourceUrl}");
         sb.AppendLine();
@@ -17,8 +18,8 @@ public static class MarkdownSerializer
         {
             sb.AppendLine();
             sb.AppendLine($"## Item {i + 1}");
-            foreach (var prop in props)
-                sb.AppendLine($"- **{ToCamelCase(prop.Name)}**: {RenderValue(prop.GetValue(items[i]))}");
+            foreach (var field in items[i].Fields)
+                sb.AppendLine($"- **{ToCamelCase(field.Key)}**: {RenderValue(field.Value)}");
         }
 
         return sb.ToString();

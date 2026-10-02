@@ -23,7 +23,17 @@ public sealed class ScrapingClient
 
     private readonly RobotsTxtChecker _robots = new();
     private readonly ConcurrentDictionary<string, ResiliencePipeline<HttpResponseMessage>> _pipelinesByHost = new(StringComparer.OrdinalIgnoreCase);
+    private readonly IReadOnlyDictionary<string, string>? _headers;
+    private readonly string? _cookie;
     private DateTime _lastRequestUtc = DateTime.MinValue;
+
+    /// <param name="headers">Optional per-request headers from the job config (e.g. auth), sent with every page request.</param>
+    /// <param name="cookie">Optional cookie value, sent as the <c>Cookie</c> header on every page request.</param>
+    public ScrapingClient(IReadOnlyDictionary<string, string>? headers = null, string? cookie = null)
+    {
+        _headers = headers;
+        _cookie = cookie;
+    }
 
     static ScrapingClient()
     {
@@ -116,13 +126,20 @@ public sealed class ScrapingClient
         return builder.Build();
     }
 
-    private static async ValueTask<HttpResponseMessage> FetchCoreAsync(string url, CancellationToken ct)
+    private async ValueTask<HttpResponseMessage> FetchCoreAsync(string url, CancellationToken ct)
     {
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         cts.CancelAfter(RequestTimeout);
         try
         {
-            return await Http.GetAsync(url, cts.Token).ConfigureAwait(false);
+            using var request = new HttpRequestMessage(HttpMethod.Get, url);
+            if (_headers is not null)
+                foreach (var header in _headers)
+                    request.Headers.TryAddWithoutValidation(header.Key, header.Value);
+            if (!string.IsNullOrEmpty(_cookie))
+                request.Headers.TryAddWithoutValidation("Cookie", _cookie);
+
+            return await Http.SendAsync(request, cts.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {

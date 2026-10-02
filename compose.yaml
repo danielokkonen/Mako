@@ -1,29 +1,44 @@
 name: scraper
 
 services:
+  db:
+    image: docker.io/library/postgres:18
+    environment:
+      POSTGRES_USER: scraper
+      POSTGRES_PASSWORD: scraper
+      POSTGRES_DB: scraper
+    volumes:
+      - scraper-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U scraper -d scraper"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   quotes-toscrape:
     build:
       context: .
-      dockerfile: src/Scraper.QuotesToscrape/Dockerfile
-    image: scraper-quotes-toscrape
-    command: ["--schedule", "0 */6 * * *"] # every 6h on the hour
+      dockerfile: src/Scraper.Host/Dockerfile
+    image: scraper-host
+    command: ["configs/quotes.yaml", "--schedule", "0 */6 * * *"] # every 6h on the hour
     environment:
       TZ: ${SCRAPER_TZ:-UTC}
-    volumes:
-      - scraper-data:/data
+      SCRAPER_CONNECTION_STRING: Host=db;Port=5432;Username=scraper;Password=scraper;Database=scraper
+    depends_on:
+      db:
+        condition: service_healthy
     restart: unless-stopped
 
   blocket:
-    build:
-      context: .
-      dockerfile: src/Scraper.Blocket/Dockerfile
-    image: scraper-blocket
-    command: ["--schedule", "0 6 * * *"] # daily at 06:00
+    image: scraper-host
+    command: ["configs/blocket.yaml", "--schedule", "0 6 * * *"] # daily at 06:00
     environment:
       TZ: ${SCRAPER_TZ:-UTC}
-    volumes:
-      - scraper-data:/data
+      SCRAPER_CONNECTION_STRING: Host=db;Port=5432;Username=scraper;Password=scraper;Database=scraper
+    depends_on:
+      db:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:
-  scraper-data:
+  scraper-db:

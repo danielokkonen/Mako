@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using Scraper.Core.Config;
+using Scraper.Core.Extraction;
 using Scraper.Core.Interfaces;
 using Scraper.Core.Serializers;
 
@@ -14,14 +16,26 @@ public static class ScraperRunner
     private const int MaxPages = 50;
 
     /// <param name="snapshotPath">Optional file for a JSON/Markdown snapshot (format chosen by extension). Null skips the snapshot.</param>
-    /// <param name="persist">Called once with all collected items to persist them (e.g. into SQLite).</param>
-    public static async Task<RunResult> RunAsync<T>(IScraper<T> scraper, string url, string? snapshotPath, Func<IReadOnlyList<T>, Task> persist)
+    /// <param name="persist">Called once with all collected items to persist them.</param>
+    public static async Task<RunResult> RunAsync(SiteJob job, CapabilityRegistry capabilities, string? snapshotPath, Func<IReadOnlyList<ScrapedItem>, Task> persist)
     {
-        var client = new ScrapingClient();
-        var allItems = new List<T>();
+        if (!capabilities.TryGetSource(job.Source.Kind, out var source))
+            throw new ConfigurationException($"Source capability '{job.Source.Kind}' is not registered");
+
+        IPaginationStrategy? pagination = null;
+        if (job.Pagination is not null)
+        {
+            if (!capabilities.TryGetPaginationStrategy(job.Pagination.Strategy, out var strategy))
+                throw new ConfigurationException($"Pagination capability '{job.Pagination.Strategy}' is not registered");
+
+            pagination = strategy;
+        }
+
+        var client = new ScrapingClient(job.Headers, job.Cookie);
+        var allItems = new List<ScrapedItem>();
         var failedUrls = new List<string>();
         var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        string? currentUrl = url;
+        string? currentUrl = job.Url.ToString();
         int pagesScraped = 0;
         var stopwatch = Stopwatch.StartNew();
 
@@ -57,11 +71,23 @@ public static class ScraperRunner
                 break;
             }
 
-            var page = await scraper.ScrapeAsync(html, currentUrl).ConfigureAwait(false);
+            ScrapedPage page;
+            try
+            {
+                page = await source.ExtractAsync(html, new Uri(currentUrl), job).ConfigureAwait(false);
+            }
+            catch (PageExtractionException ex)
+            {
+                Console.Error.WriteLine($"Stopping at {currentUrl}: {ex.Message}");
+                failedUrls.Add(currentUrl);
+                break;
+            }
+
             allItems.AddRange(page.Items);
             Console.WriteLine($"  page {pagesScraped + 1}: {page.Items.Count} items");
 
-            currentUrl = page.NextPageUrl;
+            Uri pageUrl = new(currentUrl);
+            currentUrl = pagination is null ? null : pagination.NextPageUrl(page, pageUrl, job.Pagination!);
             pagesScraped++;
         }
 
@@ -76,7 +102,7 @@ public static class ScraperRunner
                 || snapshotPath.EndsWith(".markdown", StringComparison.OrdinalIgnoreCase);
 
             string content = isMarkdown
-                ? MarkdownSerializer.ToMarkdown(allItems, url)
+                ? MarkdownSerializer.ToMarkdown(allItems, job.Url.ToString())
                 : JsonSerializer.ToJson(allItems);
 
             var fullPath = Path.GetFullPath(snapshotPath);
@@ -102,7 +128,7 @@ public static class ScraperRunner
         var summary = $"Done in {stopwatch.Elapsed.TotalSeconds:F1}s: {allItems.Count} items from {pagesScraped} page(s)";
         if (failedUrls.Count > 0)
             summary += $", {failedUrls.Count} failed";
-        Console.WriteLine($"{summary} → {SqliteStorage.DatabasePath}");
+        Console.WriteLine(summary);
         if (snapshotFull is not null)
             Console.WriteLine($"Snapshot: {snapshotFull}");
 

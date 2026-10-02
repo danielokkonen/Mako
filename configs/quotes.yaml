@@ -1,0 +1,22 @@
+name: Quotes to Scrape
+url: https://quotes.toscrape.com/
+table: quotes
+source:
+  kind: dom
+  items: div.quote
+fields:
+  - name: text
+    source: .text
+    type: text
+    transform: strip-curly-quotes
+  - name: author
+    source: .author
+    type: text
+  - name: tags
+    source: a.tag
+    type: text
+    list: true
+key: [text, author]
+pagination:
+  strategy: next-link
+  selector: li.next a

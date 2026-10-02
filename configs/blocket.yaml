@@ -1,0 +1,60 @@
+name: Blocket
+url: "https://www.blocket.se/recommerce/forsale/search?consoles_type=16&product_category=2.93.3905.63"
+table: blocket_listings
+source:
+  kind: embedded-json
+  items: .docs
+  marker: <script type="application/json" data-react-query-state>
+  anchor: '$.queries[?(@.state.data.docs)].state.data'
+fields:
+  - name: id
+    source: .id
+    type: long
+  - name: title
+    source: .heading
+    type: text
+    default: ""
+  - name: price_amount
+    source: .price.amount
+    type: integer
+  - name: currency_code
+    source: .price.currency_code
+    type: text
+    default: SEK
+  - name: location
+    source: .location
+    type: text
+    default: ""
+  - name: latitude
+    source: .coordinates.lat
+    type: real
+    default: 0
+  - name: longitude
+    source: .coordinates.lon
+    type: real
+    default: 0
+  - name: canonical_url
+    source: .canonical_url
+    type: text
+    default: ""
+  - name: image_url
+    source: .image.url
+    type: text
+    default: ""
+  - name: seller_type
+    source: .flags[0]
+    type: text
+  - name: trade_type
+    source: .trade_type
+    type: text
+    default: ""
+  - name: timestamp
+    source: .timestamp
+    type: date
+    default: "1970-01-01T00:00:00Z"
+key: [id]
+pagination:
+  strategy: page-param
+  param: page
+  current: .metadata.paging.current
+  last: .metadata.paging.last
