@@ -21,13 +21,22 @@ dotnet run --project src/Scraper.Host -- configs/<site>.yaml [snapshot.json | sn
 
 ### Database / containers
 
-- Connection string resolution: `SCRAPER_CONNECTION_STRING` env var wins; otherwise the local dev default (`Host=localhost;Port=5432;Username=daniel;Password=daniel;Database=scraper`). **Keyword form only** — Npgsql 10.x rejects URI format.
-- Local dev Postgres: `podman compose -f dev/compose.yaml up -d db`.
+- Connection string resolution: `SCRAPER_CONNECTION_STRING` env var wins; otherwise the local dev default (`Host=localhost;Port=5432;Username=scraper;Password=scraper;Database=scraper`). **Keyword form only** — Npgsql 10.x rejects URI format.
+- Local dev Postgres: `podman compose -f dev/compose.yaml up -d db` — **podman is not available in this shell** and cannot be exposed; assume the dev DB is already running (started outside the shell). If a run fails with `Database error:` instead, it isn't.
 - Prod: root `compose.yaml` = a `db` service (Postgres, own volume) + one service per config file sharing the `scraper-host` image (per-service command + env: `SCRAPER_CONNECTION_STRING`, `TZ` from `SCRAPER_TZ`). `podman compose up -d --build`.
 
 ### Scheduling
 
 - Jobs accept `--schedule '<cron>'` (parsed by Cronos): instead of exiting they loop on that cron schedule until SIGTERM/Ctrl+C; a failed run is logged and retried at the next interval. With the flag the job also runs **once immediately on start** (catch-up for time the machine was off), then fires on each scheduled time. Without the flag: single run, as before.
+
+### Verification (smoke run)
+
+There is no test project; end-to-end verification means running both jobs against the local dev DB (no podman involved — see above):
+
+    dotnet run --project src/Scraper.Host -- configs/quotes.yaml   # static site: expect 10 pages, 100 items
+    dotnet run --project src/Scraper.Host -- configs/blocket.yaml  # live listings: page/item counts vary
+
+Success = exit code 0 per job and a `Done in …s: N items from M page(s)` line. A non-zero exit means some page failed — stderr names the URL and reason (site problem, not necessarily a code bug).
 
 ## Adding a new site job
 
