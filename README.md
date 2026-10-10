@@ -20,6 +20,7 @@ A config-driven scraping engine built on .NET 10 and AngleSharp. A shared core l
 | `src/Mako.Host` | Thin executable: CLI parsing, DI composition root registering the built-in capabilities by name, cron scheduling, SIGTERM handling |
 | `configs/quotes.yaml` | Job for https://quotes.toscrape.com (dom source, next-link pagination) |
 | `configs/blocket.yaml` | Job for Blocket listings (embedded-json source, page-param pagination) |
+| `tests/Mako.Core.Tests` | NUnit unit tests mirroring the production folder structure (`Config/`, `Extraction/`, `Pagination/`, `Storage/`, `Transforms/`) — no Postgres or network required |
 
 ## Requirements
 
@@ -31,6 +32,7 @@ A config-driven scraping engine built on .NET 10 and AngleSharp. A shared core l
 
 ```bash
 dotnet build   # builds Mako.slnx (note: .slnx, not .sln)
+dotnet test    # runs the unit tests (tests/Mako.Core.Tests)
 
 # single run; the start URL comes from the config file
 dotnet run --project src/Mako.Host -- configs/quotes.yaml [snapshot.json | snapshot.md] [--schedule '<cron>']
@@ -89,14 +91,3 @@ cookie: "session=${SESSION}"   # optional; ${VAR} is read from the environment a
 ```
 
 For `embedded-json`, add `marker:` (the exact script-tag prefix whose base64 content holds the payload) and `anchor:` (a JSON path selecting the page-data object). The schema for both tables is created automatically at job start — nothing to migrate. Optionally, add a service entry to `compose.yaml` (same image, new command + env).
-
-## Conventions & gotchas
-
-- **No test suite.** Verification is live runs against https://quotes.toscrape.com/ and Blocket (requires network; the client enforces a 1s polite delay between requests).
-- AngleSharp is **1.x**: parse with `new HtmlParser().ParseDocument(html)` and `GetAttribute(name)` returns `string?`.
-- The host CLI uses **System.CommandLine 2.0.12** (old beta-era model-based API): build a `RootCommand`, set actions via `root.SetAction(parseResult => ...)`, read values with `parseResult.GetValue<T>(arg)`, run with `await root.Parse(args).InvokeAsync()`.
-- Npgsql connection strings must be **keyword form**; URI format (`postgres://…`) throws at parse time.
-- SIGTERM graceful shutdown in the `--schedule` loop only works when running the **apphost binary** (`./Mako.Host`); via `dotnet <dll>` the muxer intercepts SIGTERM first. The Dockerfile uses the apphost for this reason.
-- One job owns its tables: history versioning assumes a single writer per table (running the same config concurrently can collide on `(key, version)`).
-- `.editorconfig` at the root codifies repo style (UTF-8, LF, 4-space indent, file-scoped namespaces).
-- Root `output.json` / `output.md` are generated data from runs, not source — safe to delete or regenerate.
