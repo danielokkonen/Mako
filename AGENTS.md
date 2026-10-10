@@ -1,20 +1,20 @@
 # AGENTS.md
 
-C# config-driven scraping engine. .NET 10, AngleSharp for parsing, NUnit unit tests in `tests/Scraper.Core.Tests`, no CI.
+C# config-driven scraping engine. .NET 10, AngleSharp for parsing, NUnit unit tests in `tests/Mako.Core.Tests`, no CI.
 
 ## Layout
 
-- `src/Scraper.Core` — **engine library** (namespace `Scraper.Core`): `ScrapingClient` (HTTP + robots.txt check + Polly retry/backoff/jitter + per-host circuit breaker; optional per-job request headers/cookie from config), `RobotsTxtChecker`, the config model + loader in `Config/` (`SiteJob`, field mappings, source kind, pagination strategy — fully validated before any network/DB access), extraction capabilities in `Extraction/` (`DomItemSource`, `EmbeddedJsonItemSource` over JsonCons.JsonPath, `FieldCoercion` to declared types), built-in transforms in `Transforms/`, pagination strategies in `Pagination/` (`NextLinkPagination`, `PageParamPagination`), storage in `Storage/`: `PostgresStorage` (connection string resolution) and `DocumentStore` — raw ADO.NET over Npgsql, **no EF Core**: per-job data table `(key TEXT UNIQUE, data JSONB, changed_at)` + history table `(key, version INT, data JSONB, changed_at)`, PK `(key, version)`; idempotent `CREATE TABLE IF NOT EXISTS`; upsert with jsonb change detection (`IS DISTINCT FROM`); append-only versions. Document-aware serializers in `Serializers/` (`JsonSerializer`, `MarkdownSerializer`), `CronScheduler` (chunked wait so long gaps can't overflow `Task.Delay`), and `ScraperRunner` (fetch → extract → paginate → persist, 50-page cap, visited-set cycle detection, stop-at-first-failed-page + persist-collected).
-- `src/Scraper.Host` — **thin exe** (composition root): System.CommandLine 2.0.12 model-based CLI (`<config.yaml> [output] [--schedule '<cron>']`), DI registration of the built-in capabilities by name via `CapabilityRegistry`, Cronos scheduling with immediate catch-up run, SIGTERM/Ctrl+C graceful shutdown.
+- `src/Mako.Core` — **engine library** (namespace `Mako.Core`): `ScrapingClient` (HTTP + robots.txt check + Polly retry/backoff/jitter + per-host circuit breaker; optional per-job request headers/cookie from config), `RobotsTxtChecker`, the config model + loader in `Config/` (`SiteJob`, field mappings, source kind, pagination strategy — fully validated before any network/DB access), extraction capabilities in `Extraction/` (`DomItemSource`, `EmbeddedJsonItemSource` over JsonCons.JsonPath, `FieldCoercion` to declared types), built-in transforms in `Transforms/`, pagination strategies in `Pagination/` (`NextLinkPagination`, `PageParamPagination`), storage in `Storage/`: `PostgresStorage` (connection string resolution) and `DocumentStore` — raw ADO.NET over Npgsql, **no EF Core**: per-job data table `(key TEXT UNIQUE, data JSONB, changed_at)` + history table `(key, version INT, data JSONB, changed_at)`, PK `(key, version)`; idempotent `CREATE TABLE IF NOT EXISTS`; upsert with jsonb change detection (`IS DISTINCT FROM`); append-only versions. Document-aware serializers in `Serializers/` (`JsonSerializer`, `MarkdownSerializer`), `CronScheduler` (chunked wait so long gaps can't overflow `Task.Delay`), and `MakoRunner` (fetch → extract → paginate → persist, 50-page cap, visited-set cycle detection, stop-at-first-failed-page + persist-collected).
+- `src/Mako.Host` — **thin exe** (composition root): System.CommandLine 2.0.12 model-based CLI (`<config.yaml> [output] [--schedule '<cron>']`), DI registration of the built-in capabilities by name via `CapabilityRegistry`, Cronos scheduling with immediate catch-up run, SIGTERM/Ctrl+C graceful shutdown.
 - `configs/` — **one YAML file per job** (`quotes.yaml`, `blocket.yaml`). A new site = a new YAML file; no C# is written or compiled per site.
-- `tests/Scraper.Core.Tests` — **unit test project** (NUnit 4.x + Microsoft.NET.Test.Sdk, net10.0). Test files mirror the production folder structure (`Config/`, `Extraction/`, `Pagination/`, `Storage/`, `Transforms/`; root-level classes like `CapabilityRegistry` stay at the test-project root), namespaces `Scraper.Core.Tests[.<Folder>]`. All tests are pure unit tests — none require Postgres or network access.
+- `tests/Mako.Core.Tests` — **unit test project** (NUnit 4.x + Microsoft.NET.Test.Sdk, net10.0). Test files mirror the production folder structure (`Config/`, `Extraction/`, `Pagination/`, `Storage/`, `Transforms/`; root-level classes like `CapabilityRegistry` stay at the test-project root), namespaces `Mako.Core.Tests[.<Folder>]`. All tests are pure unit tests — none require Postgres or network access.
 
 ## Commands
 
 ```bash
-dotnet build                                        # builds Scraper.slnx (note: .slnx, not .sln)
-dotnet test                                         # runs all unit tests (tests/Scraper.Core.Tests)
-dotnet run --project src/Scraper.Host -- configs/<site>.yaml [snapshot.json | snapshot.md] [--schedule '<cron>']
+dotnet build                                        # builds Mako.slnx (note: .slnx, not .sln)
+dotnet test                                         # runs all unit tests (tests/Mako.Core.Tests)
+dotnet run --project src/Mako.Host -- configs/<site>.yaml [snapshot.json | snapshot.md] [--schedule '<cron>']
 ```
 
 - The start URL comes from the config file; there is no central dispatcher. Run a job by pointing the host at its config.
@@ -23,9 +23,9 @@ dotnet run --project src/Scraper.Host -- configs/<site>.yaml [snapshot.json | sn
 
 ### Database / containers
 
-- Connection string resolution: `SCRAPER_CONNECTION_STRING` env var wins; otherwise the local dev default (`Host=localhost;Port=5432;Username=user;Password=password;Database=scraper`). **Keyword form only** — Npgsql 10.x rejects URI format.
+- Connection string resolution: `MAKO_CONNECTION_STRING` env var wins; otherwise the local dev default (`Host=localhost;Port=5432;Username=user;Password=password;Database=mako`). **Keyword form only** — Npgsql 10.x rejects URI format.
 - Local dev Postgres: `podman compose -f dev/compose.yaml up -d db` — **podman is not available in this shell** and cannot be exposed; assume the dev DB is already running (started outside the shell). If a run fails with `Database error:` instead, it isn't.
-- Prod: root `compose.yaml` = a `db` service (Postgres, own volume) + one service per config file sharing the `scraper-host` image (per-service command + env: `SCRAPER_CONNECTION_STRING`, `TZ` from `SCRAPER_TZ`). `podman compose up -d --build`.
+- Prod: root `compose.yaml` = a `db` service (Postgres, own volume) + one service per config file sharing the `mako-host` image (per-service command + env: `MAKO_CONNECTION_STRING`, `TZ` from `MAKO_TZ`). `podman compose up -d --build`.
 
 ### Scheduling
 
@@ -35,8 +35,8 @@ dotnet run --project src/Scraper.Host -- configs/<site>.yaml [snapshot.json | sn
 
 Full verification = `dotnet build`, `dotnet test` (all green; 121 cases at time of writing), plus the two smoke runs below against the local dev DB (no podman involved — see above):
 
-    dotnet run --project src/Scraper.Host -- configs/quotes.yaml   # static site: expect 10 pages, 100 items
-    dotnet run --project src/Scraper.Host -- configs/blocket.yaml  # live listings: page/item counts vary
+    dotnet run --project src/Mako.Host -- configs/quotes.yaml   # static site: expect 10 pages, 100 items
+    dotnet run --project src/Mako.Host -- configs/blocket.yaml  # live listings: page/item counts vary
 
 Success = exit code 0 per job and a `Done in …s: N items from M page(s)` line. A non-zero exit means some page failed — stderr names the URL and reason (site problem, not necessarily a code bug).
 
@@ -51,7 +51,7 @@ Success = exit code 0 per job and a `Done in …s: N items from M page(s)` line.
 - AngleSharp is **1.x**: parse with `new HtmlParser().ParseDocument(html)` and `GetAttribute(name)` returns `string?`. Older examples using `BrowsingContext.Parse` / string-returning attribute access will not compile.
 - The host CLI uses **System.CommandLine 2.0.12**, which exposes the old beta-era model-based API: build a `RootCommand`, set actions with `root.SetAction(parseResult => ...)`, read values via `parseResult.GetValue<T>(arg)`, run with `await root.Parse(args).InvokeAsync()`. The modern `SetHandler`/`command.InvokeAsync` examples from current docs do **not** compile against this version.
 - Npgsql connection strings must be **keyword form** (`Host=...;Port=...;Username=...;Password=...;Database=...`). URI format (`postgres://…`) throws `ArgumentException` at parse time (verified on Npgsql 10.0.3).
-- SIGTERM graceful shutdown (the `--schedule` loop) only works when running the **apphost binary** (`./Scraper.Host`); via `dotnet <dll>` the muxer intercepts SIGTERM and the process dies without running our handler. The Dockerfile uses the apphost for this reason.
+- SIGTERM graceful shutdown (the `--schedule` loop) only works when running the **apphost binary** (`./Mako.Host`); via `dotnet <dll>` the muxer intercepts SIGTERM and the process dies without running our handler. The Dockerfile uses the apphost for this reason.
 - One job owns its tables: `DocumentStore` computes history versions as `MAX(version)+1` inside the persist transaction, which assumes a single writer per table. Running the same config concurrently (e.g. a manual run while the scheduled container fires) can collide on `(key, version)` and roll back the whole run.
 - C# interpolated raw strings: with k leading `$`, exactly-k brace runs delimit holes and longer runs are compile errors — e.g., a template needing literal `{{…}}` text uses `$$$"""…{{{hole}}}…”`.
 - JsonCons.JsonPath rejects recursive descent `$..[]` at parse time; to select multiple arrays use e.g. `$[*]` over an array-of-arrays.

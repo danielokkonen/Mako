@@ -1,0 +1,12 @@
+namespace Mako.Core.Exceptions;
+
+public sealed class PageFetchFailedException : Exception
+{
+    public string Reason { get; }
+
+    public PageFetchFailedException(string url, string reason, Exception? inner = null)
+        : base($"Failed to fetch {url}: {reason}", inner)
+    {
+        Reason = reason;
+    }
+}

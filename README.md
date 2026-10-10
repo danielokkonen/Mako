@@ -1,4 +1,4 @@
-# Scraper
+# Mako
 
 A config-driven scraping engine built on .NET 10 and AngleSharp. A shared core library handles fetching, politeness (robots.txt), resilience, extraction, pagination, persistence, and scheduling; each target site is a single YAML file under `configs/` — no C# per site.
 
@@ -16,8 +16,8 @@ A config-driven scraping engine built on .NET 10 and AngleSharp. A shared core l
 
 | Path | What it is |
 | --- | --- |
-| `src/Scraper.Core` | Engine library (`Scraper.Core`): `ScrapingClient`, `RobotsTxtChecker`, config model + loader, extraction capabilities (`dom`, `embedded-json`), field coercion and transforms, pagination strategies, `DocumentStore` (raw ADO.NET over Npgsql — no EF Core), serializers, `CronScheduler`, `ScraperRunner` |
-| `src/Scraper.Host` | Thin executable: CLI parsing, DI composition root registering the built-in capabilities by name, cron scheduling, SIGTERM handling |
+| `src/Mako.Core` | Engine library (`Mako.Core`): `ScrapingClient`, `RobotsTxtChecker`, config model + loader, extraction capabilities (`dom`, `embedded-json`), field coercion and transforms, pagination strategies, `DocumentStore` (raw ADO.NET over Npgsql — no EF Core), serializers, `CronScheduler`, `MakoRunner` |
+| `src/Mako.Host` | Thin executable: CLI parsing, DI composition root registering the built-in capabilities by name, cron scheduling, SIGTERM handling |
 | `configs/quotes.yaml` | Job for https://quotes.toscrape.com (dom source, next-link pagination) |
 | `configs/blocket.yaml` | Job for Blocket listings (embedded-json source, page-param pagination) |
 
@@ -30,10 +30,10 @@ A config-driven scraping engine built on .NET 10 and AngleSharp. A shared core l
 ## Build & run
 
 ```bash
-dotnet build   # builds Scraper.slnx (note: .slnx, not .sln)
+dotnet build   # builds Mako.slnx (note: .slnx, not .sln)
 
 # single run; the start URL comes from the config file
-dotnet run --project src/Scraper.Host -- configs/quotes.yaml [snapshot.json | snapshot.md] [--schedule '<cron>']
+dotnet run --project src/Mako.Host -- configs/quotes.yaml [snapshot.json | snapshot.md] [--schedule '<cron>']
 ```
 
 - There is no central dispatcher — you run a job by pointing the host at its config file.
@@ -42,27 +42,27 @@ dotnet run --project src/Scraper.Host -- configs/quotes.yaml [snapshot.json | sn
 
 ### Database connection
 
-- Local runs default to this machine's Postgres (`Host=localhost;Port=5432;Username=user;Password=password;Database=scraper`) — start it with `podman compose -f dev/compose.yaml up -d db`. No environment variable needed for local development.
-- Override with the `SCRAPER_CONNECTION_STRING` env var. **Keyword form only** (`Host=db;Port=5432;Username=...;Password=...;Database=scraper`) — Npgsql 10.x rejects URI format (`postgres://…`). The prod `compose.yaml` sets it explicitly per service, pointing at its own Postgres container.
+- Local runs default to this machine's Postgres (`Host=localhost;Port=5432;Username=user;Password=password;Database=mako`) — start it with `podman compose -f dev/compose.yaml up -d db`. No environment variable needed for local development.
+- Override with the `MAKO_CONNECTION_STRING` env var. **Keyword form only** (`Host=db;Port=5432;Username=...;Password=...;Database=mako`) — Npgsql 10.x rejects URI format (`postgres://…`). The prod `compose.yaml` sets it explicitly per service, pointing at its own Postgres container.
 
 ### Scheduling
 
 ```bash
-dotnet run --project src/Scraper.Host -- configs/quotes.yaml --schedule '0 */6 * * *'   # every 6h on the hour
+dotnet run --project src/Mako.Host -- configs/quotes.yaml --schedule '0 */6 * * *'   # every 6h on the hour
 ```
 
 The cron expression is parsed by Cronos; an invalid expression exits with an error before anything runs. With `--schedule` the job also runs once immediately on start (catch-up for time the machine was off).
 
 ### Containers
 
-One Dockerfile (`src/Scraper.Host/Dockerfile`, build context = repo root) builds a single image that serves every job; the root `compose.yaml` wires it up:
+One Dockerfile (`src/Mako.Host/Dockerfile`, build context = repo root) builds a single image that serves every job; the root `compose.yaml` wires it up:
 
 ```bash
 podman compose up -d --build   # or: docker compose up -d --build
 ```
 
 - A `db` service (Postgres with its own volume) plus one service per config file — same image, different command (`configs/x.yaml`) and env.
-- Cron time zone comes from the `TZ` env var (`SCRAPER_TZ`, defaults to UTC).
+- Cron time zone comes from the `TZ` env var (`MAKO_TZ`, defaults to UTC).
 
 ## Adding a new site job
 
@@ -96,7 +96,7 @@ For `embedded-json`, add `marker:` (the exact script-tag prefix whose base64 con
 - AngleSharp is **1.x**: parse with `new HtmlParser().ParseDocument(html)` and `GetAttribute(name)` returns `string?`.
 - The host CLI uses **System.CommandLine 2.0.12** (old beta-era model-based API): build a `RootCommand`, set actions via `root.SetAction(parseResult => ...)`, read values with `parseResult.GetValue<T>(arg)`, run with `await root.Parse(args).InvokeAsync()`.
 - Npgsql connection strings must be **keyword form**; URI format (`postgres://…`) throws at parse time.
-- SIGTERM graceful shutdown in the `--schedule` loop only works when running the **apphost binary** (`./Scraper.Host`); via `dotnet <dll>` the muxer intercepts SIGTERM first. The Dockerfile uses the apphost for this reason.
+- SIGTERM graceful shutdown in the `--schedule` loop only works when running the **apphost binary** (`./Mako.Host`); via `dotnet <dll>` the muxer intercepts SIGTERM first. The Dockerfile uses the apphost for this reason.
 - One job owns its tables: history versioning assumes a single writer per table (running the same config concurrently can collide on `(key, version)`).
 - `.editorconfig` at the root codifies repo style (UTF-8, LF, 4-space indent, file-scoped namespaces).
 - Root `output.json` / `output.md` are generated data from runs, not source — safe to delete or regenerate.

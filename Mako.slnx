@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Mako.Host/Mako.Host.csproj" />
+    <Project Path="src/Mako.Core/Mako.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Mako.Core.Tests/Mako.Core.Tests.csproj" />
+  </Folder>
+</Solution>

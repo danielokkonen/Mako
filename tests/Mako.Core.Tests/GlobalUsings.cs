@@ -1,0 +1,10 @@
+global using System.Text;
+global using AngleSharp.Html.Dom;
+global using AngleSharp.Html.Parser;
+global using Mako.Core.Config;
+global using Mako.Core.Exceptions;
+global using Mako.Core.Extraction;
+global using Mako.Core.Interfaces;
+global using Mako.Core.Pagination;
+global using Mako.Core.Storage;
+global using Mako.Core.Transforms;
