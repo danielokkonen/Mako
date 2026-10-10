@@ -7,10 +7,12 @@ services:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
       POSTGRES_DB: scraper
+    ports:
+      - "5433:5432"
     volumes:
-      - scraper-db:/var/home/daniel/.local/share/containers/storage/volumes/scraper-db/_data
+      - scraper-db:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U scraper -d scraper"]
+      test: ["CMD-SHELL", "pg_isready -U user -d scraper"]
       interval: 5s
       timeout: 3s
       retries: 10

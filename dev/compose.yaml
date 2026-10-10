@@ -9,7 +9,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - dev-db:/var/home/daniel/.local/share/containers/storage/volumes/dev-db/_data
+      - dev-db:/var/lib/postgresql
 
 volumes:
   dev-db:
