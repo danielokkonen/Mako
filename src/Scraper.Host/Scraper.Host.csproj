@@ -9,7 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../Scraper/Scraper.csproj" />
+    <ProjectReference Include="../Scraper.Core/Scraper.Core.csproj" />
     <PackageReference Include="Cronos" Version="0.13.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.12" />
     <PackageReference Include="System.CommandLine" Version="2.0.12" />

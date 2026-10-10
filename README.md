@@ -16,7 +16,7 @@ A config-driven scraping engine built on .NET 10 and AngleSharp. A shared core l
 
 | Path | What it is |
 | --- | --- |
-| `src/Scraper` | Engine library (`Scraper.Core`): `ScrapingClient`, `RobotsTxtChecker`, config model + loader, extraction capabilities (`dom`, `embedded-json`), field coercion and transforms, pagination strategies, `DocumentStore` (raw ADO.NET over Npgsql — no EF Core), serializers, `CronScheduler`, `ScraperRunner` |
+| `src/Scraper.Core` | Engine library (`Scraper.Core`): `ScrapingClient`, `RobotsTxtChecker`, config model + loader, extraction capabilities (`dom`, `embedded-json`), field coercion and transforms, pagination strategies, `DocumentStore` (raw ADO.NET over Npgsql — no EF Core), serializers, `CronScheduler`, `ScraperRunner` |
 | `src/Scraper.Host` | Thin executable: CLI parsing, DI composition root registering the built-in capabilities by name, cron scheduling, SIGTERM handling |
 | `configs/quotes.yaml` | Job for https://quotes.toscrape.com (dom source, next-link pagination) |
 | `configs/blocket.yaml` | Job for Blocket listings (embedded-json source, page-param pagination) |

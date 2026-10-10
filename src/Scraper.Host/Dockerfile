@@ -1,6 +1,6 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
-COPY src/Scraper/Scraper.csproj src/Scraper/
+COPY src/Scraper.Core/Scraper.Core.csproj src/Scraper.Core/
 COPY src/Scraper.Host/Scraper.Host.csproj src/Scraper.Host/
 RUN dotnet restore src/Scraper.Host
 COPY src/ src/
