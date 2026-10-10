@@ -6,18 +6,14 @@ using Scraper.Core.Serializers;
 
 namespace Scraper.Core;
 
-public sealed record RunResult(int ItemCount, int PagesScraped, IReadOnlyList<string> FailedUrls)
-{
-    public bool Success => FailedUrls.Count == 0;
-}
-
 public static class ScraperRunner
 {
     private const int MaxPages = 50;
 
     /// <param name="snapshotPath">Optional file for a JSON/Markdown snapshot (format chosen by extension). Null skips the snapshot.</param>
     /// <param name="persist">Called once with all collected items to persist them.</param>
-    public static async Task<RunResult> RunAsync(SiteJob job, CapabilityRegistry capabilities, string? snapshotPath, Func<IReadOnlyList<ScrapedItem>, Task> persist)
+    /// <returns>True when every page succeeded; false if any page failed (the run still persists what was collected).</returns>
+    public static async Task<bool> RunAsync(SiteJob job, CapabilityRegistry capabilities, string? snapshotPath, Func<IReadOnlyList<ScrapedItem>, Task> persist)
     {
         if (!capabilities.TryGetSource(job.Source.Kind, out var source))
             throw new ConfigurationException($"Source capability '{job.Source.Kind}' is not registered");
@@ -132,6 +128,6 @@ public static class ScraperRunner
         if (snapshotFull is not null)
             Console.WriteLine($"Snapshot: {snapshotFull}");
 
-        return new RunResult(allItems.Count, pagesScraped, failedUrls);
+        return failedUrls.Count == 0;
     }
 }

@@ -77,8 +77,8 @@ root.SetAction(async parseResult =>
         {
             await store.EnsureSchemaAsync();
             Console.WriteLine($"Scraping {job.Url} ...");
-            var result = await ScraperRunner.RunAsync(job, capabilities, output, store.PersistAsync);
-            return result.Success ? 0 : 1;
+            bool success = await ScraperRunner.RunAsync(job, capabilities, output, store.PersistAsync);
+            return success ? 0 : 1;
         }
         catch (NpgsqlException ex)
         {

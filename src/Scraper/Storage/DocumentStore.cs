@@ -23,13 +23,9 @@ public sealed class DocumentStore
             throw new ArgumentException($"Invalid table name '{table}': use a lowercase letter followed by lowercase letters, digits, or underscores.", nameof(table));
 
         _connectionString = connectionString;
-        Table = table;
         _table = $"\"{table}\"";
         _historyTable = $"\"{table}_history\"";
     }
-
-    /// <summary>The data table name (unquoted), for logging.</summary>
-    public string Table { get; }
 
     /// <summary>
     /// Creates the job's tables when absent. Safe to run any number of times: existing
