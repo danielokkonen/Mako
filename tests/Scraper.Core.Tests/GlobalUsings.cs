@@ -1,0 +1,10 @@
+global using System.Text;
+global using AngleSharp.Html.Dom;
+global using AngleSharp.Html.Parser;
+global using Scraper.Core.Config;
+global using Scraper.Core.Exceptions;
+global using Scraper.Core.Extraction;
+global using Scraper.Core.Interfaces;
+global using Scraper.Core.Pagination;
+global using Scraper.Core.Storage;
+global using Scraper.Core.Transforms;
