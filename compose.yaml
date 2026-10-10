@@ -2,13 +2,13 @@ name: scraper
 
 services:
   db:
-    image: docker.io/library/postgres:18
+    image: postgres:18
     environment:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
       POSTGRES_DB: scraper
     volumes:
-      - scraper-db:/var/lib/postgresql/data
+      - scraper-db:/var/home/daniel/.local/share/containers/storage/volumes/scraper-db/_data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U scraper -d scraper"]
       interval: 5s
