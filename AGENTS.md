@@ -1,17 +1,19 @@
 # AGENTS.md
 
-C# config-driven scraping engine. .NET 10, AngleSharp for parsing, no test project and no CI.
+C# config-driven scraping engine. .NET 10, AngleSharp for parsing, NUnit unit tests in `tests/Scraper.Core.Tests`, no CI.
 
 ## Layout
 
 - `src/Scraper.Core` — **engine library** (namespace `Scraper.Core`): `ScrapingClient` (HTTP + robots.txt check + Polly retry/backoff/jitter + per-host circuit breaker; optional per-job request headers/cookie from config), `RobotsTxtChecker`, the config model + loader in `Config/` (`SiteJob`, field mappings, source kind, pagination strategy — fully validated before any network/DB access), extraction capabilities in `Extraction/` (`DomItemSource`, `EmbeddedJsonItemSource` over JsonCons.JsonPath, `FieldCoercion` to declared types), built-in transforms in `Transforms/`, pagination strategies in `Pagination/` (`NextLinkPagination`, `PageParamPagination`), storage in `Storage/`: `PostgresStorage` (connection string resolution) and `DocumentStore` — raw ADO.NET over Npgsql, **no EF Core**: per-job data table `(key TEXT UNIQUE, data JSONB, changed_at)` + history table `(key, version INT, data JSONB, changed_at)`, PK `(key, version)`; idempotent `CREATE TABLE IF NOT EXISTS`; upsert with jsonb change detection (`IS DISTINCT FROM`); append-only versions. Document-aware serializers in `Serializers/` (`JsonSerializer`, `MarkdownSerializer`), `CronScheduler` (chunked wait so long gaps can't overflow `Task.Delay`), and `ScraperRunner` (fetch → extract → paginate → persist, 50-page cap, visited-set cycle detection, stop-at-first-failed-page + persist-collected).
 - `src/Scraper.Host` — **thin exe** (composition root): System.CommandLine 2.0.12 model-based CLI (`<config.yaml> [output] [--schedule '<cron>']`), DI registration of the built-in capabilities by name via `CapabilityRegistry`, Cronos scheduling with immediate catch-up run, SIGTERM/Ctrl+C graceful shutdown.
 - `configs/` — **one YAML file per job** (`quotes.yaml`, `blocket.yaml`). A new site = a new YAML file; no C# is written or compiled per site.
+- `tests/Scraper.Core.Tests` — **unit test project** (NUnit 4.x + Microsoft.NET.Test.Sdk, net10.0). Test files mirror the production folder structure (`Config/`, `Extraction/`, `Pagination/`, `Storage/`, `Transforms/`; root-level classes like `CapabilityRegistry` stay at the test-project root), namespaces `Scraper.Core.Tests[.<Folder>]`. All tests are pure unit tests — none require Postgres or network access.
 
 ## Commands
 
 ```bash
 dotnet build                                        # builds Scraper.slnx (note: .slnx, not .sln)
+dotnet test                                         # runs all unit tests (tests/Scraper.Core.Tests)
 dotnet run --project src/Scraper.Host -- configs/<site>.yaml [snapshot.json | snapshot.md] [--schedule '<cron>']
 ```
 
@@ -31,7 +33,7 @@ dotnet run --project src/Scraper.Host -- configs/<site>.yaml [snapshot.json | sn
 
 ### Verification (smoke run)
 
-There is no test project; end-to-end verification means running both jobs against the local dev DB (no podman involved — see above):
+Full verification = `dotnet build`, `dotnet test` (all green; 121 cases at time of writing), plus the two smoke runs below against the local dev DB (no podman involved — see above):
 
     dotnet run --project src/Scraper.Host -- configs/quotes.yaml   # static site: expect 10 pages, 100 items
     dotnet run --project src/Scraper.Host -- configs/blocket.yaml  # live listings: page/item counts vary
@@ -51,6 +53,9 @@ Success = exit code 0 per job and a `Done in …s: N items from M page(s)` line.
 - Npgsql connection strings must be **keyword form** (`Host=...;Port=...;Username=...;Password=...;Database=...`). URI format (`postgres://…`) throws `ArgumentException` at parse time (verified on Npgsql 10.0.3).
 - SIGTERM graceful shutdown (the `--schedule` loop) only works when running the **apphost binary** (`./Scraper.Host`); via `dotnet <dll>` the muxer intercepts SIGTERM and the process dies without running our handler. The Dockerfile uses the apphost for this reason.
 - One job owns its tables: `DocumentStore` computes history versions as `MAX(version)+1` inside the persist transaction, which assumes a single writer per table. Running the same config concurrently (e.g. a manual run while the scheduled container fires) can collide on `(key, version)` and roll back the whole run.
+- C# interpolated raw strings: with k leading `$`, exactly-k brace runs delimit holes and longer runs are compile errors — e.g., a template needing literal `{{…}}` text uses `$$$"""…{{{hole}}}…”`.
+- JsonCons.JsonPath rejects recursive descent `$..[]` at parse time; to select multiple arrays use e.g. `$[*]` over an array-of-arrays.
+- Testing internal types: public static members of an internal type are invokable via reflection without `InternalsVisibleTo`; `MethodInfo.Invoke` wraps target exceptions in `TargetInvocationException`, so rethrow `InnerException` to assert the original exception type/message.
 
 ## Conventions
 
@@ -60,3 +65,5 @@ Success = exit code 0 per job and a `Done in …s: N items from M page(s)` line.
 - Shared usings are global via `GlobalUsings.cs` — add repeated usings there instead of to individual files.
 - `.editorconfig` at the root codifies repo style (UTF-8, LF, 4-space indent, file-scoped namespaces); follow it for new files.
 - Root `output.json` / `output.md` are generated data from runs, not source — safe to delete or regenerate.
+- Prefer `[TestCase]`/`[TestCaseSource]` data attributes over multi-assert methods; a single scenario with multiple outcomes stays one test (e.g., fail-fast aggregation asserting all errors in one exception).
+- No comments unless absolutely necessary to understand a hack/solution that cannot be understood from variable, function, or class names.
