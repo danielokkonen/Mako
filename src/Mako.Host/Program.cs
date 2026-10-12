@@ -16,13 +16,27 @@ using Mako.Core.Transforms;
 var configArg = new Argument<string>("config")
 {
     HelpName = "CONFIG",
+    Arity = ArgumentArity.ZeroOrOne,
+    Description = "Path to a job configuration YAML file. Exactly one of CONFIG and --yaml is required.",
+};
+
+var yamlOpt = new Option<string>("--yaml")
+{
     Arity = ArgumentArity.ExactlyOne,
+    Description = "Raw job configuration YAML; alternative to the CONFIG path argument (exactly one of the two is required)."
 };
 
 var outputArg = new Argument<string>("output")
 {
     HelpName = "OUTPUT",
-    Arity = ArgumentArity.ZeroOrOne
+    Arity = ArgumentArity.ZeroOrOne,
+    Description = "Snapshot file to write (.json or .md by extension). --output takes precedence when both are given."
+};
+
+var outputOpt = new Option<string>("--output")
+{
+    Arity = ArgumentArity.ExactlyOne,
+    Description = "Snapshot file to write (.json or .md by extension); alternative to the positional OUTPUT argument (required for snapshots with --yaml)."
 };
 
 var scheduleOpt = new Option<string>("--schedule")
@@ -30,10 +44,12 @@ var scheduleOpt = new Option<string>("--schedule")
     Description = "Cron expression (e.g. '0 */6 * * *'); when set the job runs repeatedly on that schedule instead of exiting."
 };
 
-var root = new RootCommand("Mako: config-driven scraping engine — runs one YAML job config, persisting item documents to Postgres with versioned history. Optional OUTPUT arg writes a .json/.md snapshot.")
+var root = new RootCommand("Mako: config-driven scraping engine — runs one YAML job config, persisting item documents to Postgres with versioned history. Exactly one of the CONFIG path argument and --yaml (raw YAML) is required; an optional OUTPUT positional or --output option writes a .json/.md snapshot.")
 {
     configArg,
     outputArg,
+    yamlOpt,
+    outputOpt,
     scheduleOpt,
 };
 
@@ -56,11 +72,18 @@ root.SetAction(async parseResult =>
     using var provider = services.BuildServiceProvider();
     var capabilities = provider.GetRequiredService<CapabilityRegistry>();
 
-    string configPath = parseResult.GetValue(configArg)!;
+    string? configPath = parseResult.GetValue(configArg);
+    string? yamlText = parseResult.GetValue(yamlOpt);
+    if (configPath is null == yamlText is null)
+    {
+        Console.Error.WriteLine("Error: supply exactly one of a CONFIG path or --yaml <raw YAML>.");
+        return 1;
+    }
+
     SiteJob job;
     try
     {
-        job = ConfigLoader.Load(configPath, capabilities);
+        job = configPath is not null ? ConfigLoader.Load(configPath, capabilities) : ConfigLoader.Parse(yamlText!, capabilities);
     }
     catch (ConfigurationException ex)
     {
@@ -72,7 +95,7 @@ root.SetAction(async parseResult =>
 
     Func<CancellationToken, Task<int>> runOnce = async _ =>
     {
-        string? output = parseResult.GetValue(outputArg);
+        string? output = parseResult.GetValue(outputOpt) ?? parseResult.GetValue(outputArg);
         try
         {
             await store.EnsureSchemaAsync();

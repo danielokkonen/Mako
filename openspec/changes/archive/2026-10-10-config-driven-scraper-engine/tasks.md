@@ -14,7 +14,7 @@
 
 ## 3. Extraction Capabilities
 
-- [x] 3.1 Spike JSONPath library (Newtonsoft.Json.Path vs JsonEagle) against Blocket's real payload shape (`$.queries[?state.data.docs].docs[]`); record the choice
+- [x] 3.1 Spike JSONPath library (Newtonsoft.Json.Path vs JsonEagle) against a live listings site's real payload shape (`$.queries[?state.data.docs].docs[]`); record the choice
 - [x] 3.2 Implement `dom` source: AngleSharp parse, items by CSS selector, scalar fields = trimmed sub-element text, list fields collect all matches in document order; zero-match page fails with a named-selector error
 - [x] 3.3 Implement `embedded-json` source: marker lookup, base64 decode, JSON parse, item selection via the chosen JSONPath library; missing/malformed payload fails the page with an identifying error
 - [x] 3.4 Implement field coercion to declared types (`text`, `integer`, `long`, `real`, `date`) with defaults/null for absent non-key fields; missing or uncoercible key field fails the run naming the item position
@@ -38,8 +38,8 @@
 ## 7. Site Migration
 
 - [x] 7.1 Author `configs/quotes.yaml` reproducing current Quotes behavior (dom source, next-link pagination, key = text+author, list field tags)
-- [x] 7.2 Author `configs/blocket.yaml` reproducing current Blocket behavior (embedded-json source with marker/base64, page-param pagination, key = id)
-- [x] 7.3 Delete `src/Scraper.QuotesToscrape` and `src/Scraper.Blocket`, typed entities (`QuoteRow`, `QuoteTag`, `BlocketListing`), `ScraperDbContext`, `Migrations/`; remove both projects from the solution; confirm clean build
+- [x] 7.2 Author the live-listings job config reproducing its current behavior (embedded-json source with marker/base64, page-param pagination, key = id)
+- [x] 7.3 Delete both per-site scraper projects and their typed entities, `ScraperDbContext`, `Migrations/`; remove them from the solution; confirm clean build
 
 ## 8. Docker / Compose
 
@@ -50,5 +50,5 @@
 
 - [x] 9.1 Start local Postgres via compose; run quotes job against https://quotes.toscrape.com/ — item count matches current behavior, schema created, history v1 rows present
 - [x] 9.2 Re-run quotes job immediately — zero new rows and zero new versions (idempotency gate)
-- [x] 9.3 Run blocket job live — listings persist with correct types; second run writes nothing; a real site-side change appends exactly one version per changed key
+- [x] 9.3 Run the live-listings job live — listings persist with correct types; second run writes nothing; a real site-side change appends exactly one version per changed key
 - [x] 9.4 Verify failure paths: robots denial / bad URL exits non-zero after persisting collected items; `--schedule` mode runs catch-up then idles, SIGTERM exits cleanly

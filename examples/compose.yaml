@@ -1,0 +1,62 @@
+name: mako-example
+
+services:
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: mako
+      POSTGRES_PASSWORD: mako
+      POSTGRES_DB: mako
+    ports:
+      - "5434:5432"
+    volumes:
+      - mako-example-db:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mako -d mako"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  dom-source-example:
+    build:
+      context: ..
+      dockerfile: examples/Dockerfile
+    image: mako-host-example
+    # Config is passed as raw YAML (--yaml); examples/dom-source-example.yaml holds the same job for local runs.
+    command:
+      - --yaml
+      - |
+        name: Quotes to Scrape
+        url: https://quotes.toscrape.com/
+        table: quotes
+        source:
+          kind: dom
+          items: div.quote
+        fields:
+          - name: text
+            source: .text
+            type: text
+            transform: strip-curly-quotes
+          - name: author
+            source: .author
+            type: text
+          - name: tags
+            source: a.tag
+            type: text
+            list: true
+        key: [text, author]
+        pagination:
+          strategy: next-link
+          selector: li.next a
+      - "--schedule"
+      - "0 */6 * * *" # every 6h on the hour
+    environment:
+      TZ: ${MAKO_TZ:-UTC}
+      MAKO_CONNECTION_STRING: Host=db;Port=5432;Username=mako;Password=mako;Database=mako
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  mako-example-db:

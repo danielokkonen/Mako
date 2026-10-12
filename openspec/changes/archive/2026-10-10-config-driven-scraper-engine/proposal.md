@@ -7,7 +7,7 @@ Adding a scraper site today requires a full C# project: hand-written `IScraper<T
 ## What Changes
 
 - New `Scraper.Engine` library (evolved from core `src/Scraper`) plus a single thin `Scraper.Host` executable; every job is a YAML file under `configs/`.
-- **BREAKING**: Remove per-site projects `Scraper.QuotesToscrape` and `Scraper.Blocket`; both sites become config files (`configs/quotes.yaml`, `configs/blocket.yaml`) with behavior preserved.
+- **BREAKING**: Remove the two per-site scraper projects; both sites become config files under `examples/` with behavior preserved.
 - **BREAKING**: Drop EF Core, migrations, and typed row entities entirely. Storage becomes Postgres-only, document-first: per-site table `(key TEXT UNIQUE, data JSONB, changed_at)` plus a per-site history table storing one version per change.
 - **BREAKING**: Existing SQLite databases are abandoned; no migration path. Dev and prod both use Postgres (local instance via compose for dev).
 - New YAML job configuration format: source kind (`dom` / `embedded-json`), field mappings with types and transforms, natural-key declaration, table name, optional request headers/cookie, pagination strategy (`next-link` / `page-param`).
@@ -32,8 +32,8 @@ Adding a scraper site today requires a full C# project: hand-written `IScraper<T
 
 ## Impact
 
-- **Code**: `src/Scraper` evolves into the engine library (config loading, extraction capabilities, pagination strategies, storage, runner). New `src/Scraper.Host` exe project. Deleted: both job projects, `Storage/Models/{QuoteRow,QuoteTag,BlocketListing}.cs`, `ScraperDbContext`, `Migrations/`, EF-specific DI registration.
+- **Code**: `src/Scraper` evolves into the engine library (config loading, extraction capabilities, pagination strategies, storage, runner). New `src/Scraper.Host` exe project. Deleted: both job projects and their typed entity models (`Storage/Models/*.cs`), `ScraperDbContext`, `Migrations/`, EF-specific DI registration.
 - **Dependencies**: add Npgsql, a YAML parser (YamlDotNet), and a JSONPath library with filter support (candidate selection is a phase-3 spike). Remove `Microsoft.EntityFrameworkCore.*` packages from all projects. Keep AngleSharp, Cronos, System.CommandLine 2.0.12, Polly.
 - **Infrastructure**: `compose.yaml` gains a Postgres service; job services share one image with per-service command/env (`TZ`, connection string); `/data` volume removed. Dockerfile builds the host apphost binary (SIGTERM requirement unchanged).
 - **Data**: existing SQLite databases at `$XDG_DATA_HOME/Scraper/scraper.db` are abandoned. Fresh Postgres database; dev uses a local Postgres started from the same compose file.
-- **Verification**: no test suite (repo convention) — live runs against quotes.toscrape.com and Blocket; pass bar includes idempotency (second run writes zero rows/versions) and history rows appearing only on real change.
+- **Verification**: no test suite (repo convention) — live runs against quotes.toscrape.com and the live listings site; pass bar includes idempotency (second run writes zero rows/versions) and history rows appearing only on real change.

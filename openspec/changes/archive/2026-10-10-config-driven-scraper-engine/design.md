@@ -11,7 +11,7 @@ See proposal.md for motivation and scope.
 ## Goals / Non-Goals
 
 **Goals:**
-- A new job = one YAML file under `configs/`; zero C# written or compiled per site.
+- A new job = one YAML file under `examples/`; zero C# written or compiled per site.
 - Document-first Postgres storage: jsonb document as canonical record, natural-key upsert, append-only per-version history, never-delete semantics, point-in-time recoverability.
 - One engine library + one host executable; one Docker image for every job.
 - Pre-shaped extensibility: all config strategy fields resolve through a DI capability registry so future C# capabilities need no engine or config-syntax change.
@@ -56,10 +56,10 @@ First sight of a key inserts data row + history v1 (one transaction); each chang
 - *Version numbering:* `MAX(version)+1` per key inside the persist transaction — safe because exactly one job owns each table (single writer).
 
 ### D6: Extraction as named capabilities over two source kinds
-`dom`: AngleSharp parse, items by CSS selector, fields by sub-selector text content (trimmed), list fields collect all matches in order. `embedded-json`: locate declared marker string, base64-decode the following script content, parse JSON, select items by JSON path **with filter support** (required: Blocket's `$.queries[?state.data.docs].docs[]`). Field coercion to declared types; key-field integrity failures fail the run naming the item.
+`dom`: AngleSharp parse, items by CSS selector, fields by sub-selector text content (trimmed), list fields collect all matches in order. `embedded-json`: locate declared marker string, base64-decode the following script content, parse JSON, select items by JSON path **with filter support** (required: filter syntax, e.g. `$.queries[?state.data.docs].docs[]`). Field coercion to declared types; key-field integrity failures fail the run naming the item.
 
-- *Resolved dependency (spike done):* JSONPath library = **JsonCons.JsonPath 1.1.0** (Apache-2.0, built on System.Text.Json). The originally named candidates do not exist: Newtonsoft ships no JsonPath API and there is no `JsonEagle` package on NuGet. Spike against Blocket's real payload: filter anchor `$.queries[?(@.state.data.docs)]` selects exactly the search query; relative evaluation works by re-rooting (`$.docs`, `$.price.amount`, `$.flags[0]` all resolve); missing paths return an empty result list (no throw) and invalid paths throw at parse time, which lets config validation reject bad paths before any network access. Note: this library speaks Goessner/JMESPath-style filters (`[?(@.…)]`), not RFC 9535 function syntax — the anchor in `configs/blocket.yaml` uses that form.
-- *Alternative considered:* hand-rolled path walker — rejected; the filter step is Blocket-specific and a tested library beats bespoke parsing.
+- *Resolved dependency (spike done):* JSONPath library = **JsonCons.JsonPath 1.1.0** (Apache-2.0, built on System.Text.Json). The originally named candidates do not exist: Newtonsoft ships no JsonPath API and there is no `JsonEagle` package on NuGet. Spike against the live site's real payload: filter anchor `$.queries[?(@.state.data.docs)]` selects exactly the search query; relative evaluation works by re-rooting (`$.docs`, `$.price.amount`, `$.flags[0]` all resolve); missing paths return an empty result list (no throw) and invalid paths throw at parse time, which lets config validation reject bad paths before any network access. Note: this library speaks Goessner/JMESPath-style filters (`[?(@.…)]`), not RFC 9535 function syntax — the live-listings job config's anchor uses that form.
+- *Alternative considered:* hand-rolled path walker — rejected; the filter step is site-specific and a tested library beats bespoke parsing.
 
 ### D7: Pagination strategies as named capabilities
 `next-link`: CSS selector → href resolved absolute against page URL (existing convention). `page-param`: read current/last from declared locations in page data, rebuild URL with param = current+1 preserving other query parameters. Both return null at the last page; runner loop unchanged around them.
@@ -71,12 +71,12 @@ The existing run loop is reused as-is: 50-page cap, visited-set cycle detection 
 System.CommandLine 2.0.12 model-based API (`RootCommand`, `SetAction(parseResult => …)`, `parseResult.GetValue<T>`), Cronos for `--schedule` with immediate catch-up run, SIGTERM via apphost binary (Dockerfile builds the apphost; `dotnet <dll>` would let the muxer eat SIGTERM). CLI shape: `<config.yaml> [output] [--schedule '<cron>']`; start URL comes from config.
 
 ### D10: One image, Postgres service in compose
-Single Dockerfile for the host apphost. Compose: one Postgres service (own volume) + one service per config file — same image, different command (`configs/x.yaml`) and env (`TZ`, connection string). The `/data` named volume is removed; dev = `podman compose up -d db` plus running jobs against the local instance.
+Single Dockerfile for the host apphost. Compose: one Postgres service (own volume) + one service per config file — same image, different command (`examples/<site>.yaml`) and env (`TZ`, connection string). The `/data` named volume is removed; dev = `podman compose up -d db` plus running jobs against the local instance.
 
 ## Risks / Trade-offs
 
-- [JSONPath library quality/expressiveness falls short] → Phase-3 spike validates filter syntax against Blocket's real payload before any engine code depends on it; fallback is a second candidate library, both are small and swappable behind the `embedded-json` capability.
-- [No test suite — regressions caught only by live runs] → Verification gate includes an idempotency check (second run writes zero rows/versions) and history-on-real-change-only check against quotes.toscrape.com and Blocket; both sites' expected item counts are known from current behavior.
+- [JSONPath library quality/expressiveness falls short] → Phase-3 spike validates filter syntax against the live site's real payload before any engine code depends on it; fallback is a second candidate library, both are small and swappable behind the `embedded-json` capability.
+- [No test suite — regressions caught only by live runs] → Verification gate includes an idempotency check (second run writes zero rows/versions) and history-on-real-change-only check against quotes.toscrape.com and the live listings site; both sites' expected item counts are known from current behavior.
 - [jsonb numeric representation drift (int vs numeric storage)] → App-side coercion produces stable JSON types per declared field type, and equality is semantic, so representation differences cannot cause spurious changes.
 - [History growth: one full document per change, unbounded] → Acceptable at scraper scale; retention/compaction explicitly deferred (Non-Goal) rather than designed speculatively.
 - [`MAX(version)+1` assumes single writer per table] → True by construction (one job owns its tables); documented here so a future multi-writer feature forces an explicit re-examination instead of silently breaking.
@@ -85,7 +85,7 @@ Single Dockerfile for the host apphost. Compose: one Postgres service (own volum
 ## Migration Plan
 
 1. Build engine library + host against the new storage (fresh local Postgres via compose).
-2. Author `configs/quotes.yaml` and `configs/blocket.yaml`; live-run both; verify item counts match current behavior, second run writes nothing, history rows appear only on real change.
+2. Author the two example job configs (`examples/dom-source-example.yaml` + the live-listings config); live-run both; verify item counts match current behavior, second run writes nothing, history rows appear only on real change.
 3. Cutover: delete both job projects, typed entities, `ScraperDbContext`, `Migrations/`, EF packages; update solution file, Dockerfile, and compose (Postgres service in, `/data` volume out).
 4. Deploy via `podman compose up -d --build`; fresh Postgres database is the new source of truth.
 

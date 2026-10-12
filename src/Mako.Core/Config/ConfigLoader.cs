@@ -6,8 +6,9 @@ using YamlDotNet.Serialization;
 namespace Mako.Core.Config;
 
 /// <summary>
-/// Loads and validates a job configuration file. Validation is complete before any network or
-/// database access: every error names the offending element, and all errors are reported together.
+/// Loads (from a file path) or parses (raw YAML text) and validates a job configuration.
+/// Validation is complete before any network or database access: every error names the offending
+/// element, and all errors are reported together.
 /// </summary>
 public static class ConfigLoader
 {
@@ -21,15 +22,31 @@ public static class ConfigLoader
         if (!File.Exists(path))
             throw new ConfigurationException($"Configuration file not found: {path}");
 
+        string text;
+        try
+        {
+            text = File.ReadAllText(path);
+        }
+        catch (IOException ex)
+        {
+            throw new ConfigurationException($"'{path}' could not be read as a job configuration: {ex.Message}");
+        }
+
+        return Parse(text, capabilities, path);
+    }
+
+    public static SiteJob Parse(string yamlText, CapabilityRegistry capabilities) => Parse(yamlText, capabilities, "provided YAML");
+
+    private static SiteJob Parse(string yamlText, CapabilityRegistry capabilities, string source)
+    {
         JobYaml yaml;
         try
         {
-            string text = File.ReadAllText(path);
             // YAML keys are lowercase; DTO properties are PascalCase. Unknown (misspelled) keys
             // still fail: YamlDotNet throws PropertyNotFoundException, wrapped below.
             var deserializer = new DeserializerBuilder().WithCaseInsensitivePropertyMatching().Build();
-            yaml = deserializer.Deserialize<JobYaml>(text)
-                   ?? throw new YamlException("The configuration file is empty.");
+            yaml = deserializer.Deserialize<JobYaml>(yamlText)
+                   ?? throw new YamlException("The configuration is empty.");
         }
         catch (ConfigurationException)
         {
@@ -37,7 +54,7 @@ public static class ConfigLoader
         }
         catch (Exception ex) when (ex is YamlException or IOException)
         {
-            throw new ConfigurationException($"'{path}' could not be read as a job configuration: {ex.Message}");
+            throw new ConfigurationException($"'{source}' could not be read as a job configuration: {ex.Message}");
         }
 
         var errors = new List<string>();
@@ -208,7 +225,7 @@ public static class ConfigLoader
 
         if (errors.Count > 0)
             throw new ConfigurationException(
-                $"Invalid configuration in {path}:\n" + string.Join("\n", errors.Select(e => $"  - {e}")));
+                $"Invalid configuration in {source}:\n" + string.Join("\n", errors.Select(e => $"  - {e}")));
 
         return new SiteJob(
             yaml.Name!.Trim(),

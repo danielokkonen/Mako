@@ -5,8 +5,9 @@ C# config-driven scraping engine. .NET 10, AngleSharp for parsing, NUnit unit te
 ## Layout
 
 - `src/Mako.Core` — **engine library** (namespace `Mako.Core`): `ScrapingClient` (HTTP + robots.txt check + Polly retry/backoff/jitter + per-host circuit breaker; optional per-job request headers/cookie from config), `RobotsTxtChecker`, the config model + loader in `Config/` (`SiteJob`, field mappings, source kind, pagination strategy — fully validated before any network/DB access), extraction capabilities in `Extraction/` (`DomItemSource`, `EmbeddedJsonItemSource` over JsonCons.JsonPath, `FieldCoercion` to declared types), built-in transforms in `Transforms/`, pagination strategies in `Pagination/` (`NextLinkPagination`, `PageParamPagination`), storage in `Storage/`: `PostgresStorage` (connection string resolution) and `DocumentStore` — raw ADO.NET over Npgsql, **no EF Core**: per-job data table `(key TEXT UNIQUE, data JSONB, changed_at)` + history table `(key, version INT, data JSONB, changed_at)`, PK `(key, version)`; idempotent `CREATE TABLE IF NOT EXISTS`; upsert with jsonb change detection (`IS DISTINCT FROM`); append-only versions. Document-aware serializers in `Serializers/` (`JsonSerializer`, `MarkdownSerializer`), `CronScheduler` (chunked wait so long gaps can't overflow `Task.Delay`), and `MakoRunner` (fetch → extract → paginate → persist, 50-page cap, visited-set cycle detection, stop-at-first-failed-page + persist-collected).
-- `src/Mako.Host` — **thin exe** (composition root): System.CommandLine 2.0.12 model-based CLI (`<config.yaml> [output] [--schedule '<cron>']`), DI registration of the built-in capabilities by name via `CapabilityRegistry`, Cronos scheduling with immediate catch-up run, SIGTERM/Ctrl+C graceful shutdown.
-- `configs/` — **one YAML file per job** (`quotes.yaml`, `blocket.yaml`). A new site = a new YAML file; no C# is written or compiled per site.
+- `src/Mako.Host` — **thin exe** (composition root): System.CommandLine 2.0.12 model-based CLI (exactly one of `<config.yaml>` or `--yaml <raw yaml>`, plus `[output] [--schedule '<cron>']`), DI registration of the built-in capabilities by name via `CapabilityRegistry`, Cronos scheduling with immediate catch-up run, SIGTERM/Ctrl+C graceful shutdown.
+- `examples/` — **one YAML file per job** (`dom-source-example.yaml` = quotes.toscrape.com, synthetic `embedded-json-example.yaml`) plus the prod `compose.yaml`. A new site = a new YAML file; no C# is written or compiled per site.
+- `scripts/setup.sh` — **interactive prod setup** (Linux, podman/docker): collects job configs from `$CONFIG_DIR` (`~/.local/share/Mako`, override with `MAKO_CONFIG_DIR`), prompts for the Postgres host port and an optional cron schedule per config, generates `$CONFIG_DIR/mako.compose.yaml` (Postgres + one service per config, same image as `examples/compose.yaml`; configs inlined as raw YAML via `--yaml`, so re-run after editing a config), stages a build context in `$CONFIG_DIR/mako-build` and removes it on exit.
 - `tests/Mako.Core.Tests` — **unit test project** (NUnit 4.x + Microsoft.NET.Test.Sdk, net10.0). Test files mirror the production folder structure (`Config/`, `Extraction/`, `Pagination/`, `Storage/`, `Transforms/`; root-level classes like `CapabilityRegistry` stay at the test-project root), namespaces `Mako.Core.Tests[.<Folder>]`. All tests are pure unit tests — none require Postgres or network access.
 
 ## Commands
@@ -14,18 +15,18 @@ C# config-driven scraping engine. .NET 10, AngleSharp for parsing, NUnit unit te
 ```bash
 dotnet build                                        # builds Mako.slnx (note: .slnx, not .sln)
 dotnet test                                         # runs all unit tests (tests/Mako.Core.Tests)
-dotnet run --project src/Mako.Host -- configs/<site>.yaml [snapshot.json | snapshot.md] [--schedule '<cron>']
+dotnet run --project src/Mako.Host -- examples/<site>.yaml [snapshot.json | snapshot.md] [--schedule '<cron>']
 ```
 
 - The start URL comes from the config file; there is no central dispatcher. Run a job by pointing the host at its config.
-- Data is **always** persisted to the shared Postgres database (see below). The optional 2nd argument additionally writes a JSON/Markdown snapshot file.
+- Data is **always** persisted to the shared Postgres database (see below). A snapshot file can additionally be written via the positional OUTPUT argument or `--output <file>`; with `--yaml` use `--output`, since a bare positional value would be interpreted as CONFIG.
 - Jobs exit non-zero if any page failed (robots denial, HTTP error after retries, circuit breaker). The runner stops at the first failed page (a failed fetch breaks the pagination chain) but still saves whatever was collected.
 
 ### Database / containers
 
-- Connection string resolution: `MAKO_CONNECTION_STRING` env var wins; otherwise the local dev default (`Host=localhost;Port=5432;Username=user;Password=password;Database=mako`). **Keyword form only** — Npgsql 10.x rejects URI format.
+- Connection string resolution: `MAKO_CONNECTION_STRING` env var wins; otherwise the local dev default (`Host=localhost;Port=5433;Username=user;Password=password;Database=mako`). **Keyword form only** — Npgsql 10.x rejects URI format.
 - Local dev Postgres: `podman compose -f dev/compose.yaml up -d db` — **podman is not available in this shell** and cannot be exposed; assume the dev DB is already running (started outside the shell). If a run fails with `Database error:` instead, it isn't.
-- Prod: root `compose.yaml` = a `db` service (Postgres, own volume) + one service per config file sharing the `mako-host` image (per-service command + env: `MAKO_CONNECTION_STRING`, `TZ` from `MAKO_TZ`). `podman compose up -d --build`.
+- Prod: `examples/compose.yaml` = a `db` service (Postgres, own volume) + one service per example job sharing the `mako-host` image. The image ships no configs — each service's command passes the job as raw YAML (`--yaml <raw yaml>` block scalar) plus optional `--schedule`, and env sets `MAKO_CONNECTION_STRING`, `TZ` from `MAKO_TZ`. `podman compose -f examples/compose.yaml up -d --build`.
 
 ### Scheduling
 
@@ -33,17 +34,16 @@ dotnet run --project src/Mako.Host -- configs/<site>.yaml [snapshot.json | snaps
 
 ### Verification (smoke run)
 
-Full verification = `dotnet build`, `dotnet test` (all green; 121 cases at time of writing), plus the two smoke runs below against the local dev DB (no podman involved — see above):
+Full verification = `dotnet build`, `dotnet test` (all green; 125 cases at time of writing), plus the smoke run below against the local dev DB (no podman involved — see above):
 
-    dotnet run --project src/Mako.Host -- configs/quotes.yaml   # static site: expect 10 pages, 100 items
-    dotnet run --project src/Mako.Host -- configs/blocket.yaml  # live listings: page/item counts vary
+    dotnet run --project src/Mako.Host -- examples/dom-source-example.yaml   # static site: expect 10 pages, 100 items
 
 Success = exit code 0 per job and a `Done in …s: N items from M page(s)` line. A non-zero exit means some page failed — stderr names the URL and reason (site problem, not necessarily a code bug).
 
 ## Adding a new site job
 
-1. Write `configs/<site>.yaml`: `name`, `url`, `table` (lowercase identifier; history table is `<table>_history`), `source` (`kind: dom` with CSS `items` selector, or `kind: embedded-json` with `marker:` + JSON-path `anchor:` + relative `items` path), `fields` (each: `name`, `source` — CSS sub-selector for dom / relative JSON path for embedded-json —, `type`: text|integer|long|real|date, optional `transform: strip-curly-quotes`, `default`, `list: true`), `key` (field names forming the natural key), and optionally `pagination` (`strategy: next-link` + `selector`, or `strategy: page-param` + `param`/`current`/`last`), an optional `headers:` map, and an optional `cookie:` with `${VAR}` env interpolation.
-2. That's it — the schema is created automatically at job start; nothing to migrate, no C# involved. Optionally add a service entry to the root `compose.yaml` (same image, new command + env).
+1. Write `examples/<site>.yaml`: `name`, `url`, `table` (lowercase identifier; history table is `<table>_history`), `source` (`kind: dom` with CSS `items` selector, or `kind: embedded-json` with `marker:` + JSON-path `anchor:` + relative `items` path), `fields` (each: `name`, `source` — CSS sub-selector for dom / relative JSON path for embedded-json —, `type`: text|integer|long|real|date, optional `transform: strip-curly-quotes`, `default`, `list: true`), `key` (field names forming the natural key), and optionally `pagination` (`strategy: next-link` + `selector`, or `strategy: page-param` + `param`/`current`/`last`), an optional `headers:` map, and an optional `cookie:` with `${VAR}` env interpolation.
+2. That's it — the schema is created automatically at job start; nothing to migrate, no C# involved. Optionally add a service entry to `examples/compose.yaml` (same image; command = the job's raw YAML via `--yaml` plus optional `--schedule`, and env).
 
 ## Gotchas
 

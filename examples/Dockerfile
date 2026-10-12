@@ -9,6 +9,4 @@ RUN dotnet publish src/Mako.Host -c Release -o /publish
 FROM mcr.microsoft.com/dotnet/runtime:10.0 AS runtime
 WORKDIR /app
 COPY --from=build /publish .
-COPY configs/ configs/
-# Run the apphost binary, not `dotnet <dll>`: SIGTERM graceful shutdown only works via the apphost.
 ENTRYPOINT ["./Mako.Host"]

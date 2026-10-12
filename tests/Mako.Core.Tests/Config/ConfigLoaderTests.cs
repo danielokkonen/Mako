@@ -592,19 +592,55 @@ public class ConfigLoaderTests
     // Built by concatenation on purpose: in an interpolated raw string "${expr}" would not yield the literal braces this YAML needs.
     private static string CookieLine() => "cookie: \"token=${" + CookieVar + "}\"\n";
 
-    private SiteJob Load(string yaml)
+    [Test]
+    public void LoadFromPath_RoundTrips()
     {
         string path = Path.Combine(_dir, $"{Guid.NewGuid():N}.yaml");
-        File.WriteAllText(path, yaml);
-        return ConfigLoader.Load(path, _registry);
+        File.WriteAllText(path, ValidDomYaml());
+
+        var job = ConfigLoader.Load(path, _registry);
+
+        Assert.That(job.Name, Is.EqualTo("test job"));
     }
+
+    [Test]
+    public void LoadMissingPath_RejectedNamingTheFile()
+    {
+        string path = Path.Combine(_dir, "missing.yaml");
+
+        var ex = Assert.Throws<ConfigurationException>(() => ConfigLoader.Load(path, _registry));
+
+        Assert.That(ex.Message, Does.Contain("Configuration file not found"));
+    }
+
+    [Test]
+    public void MalformedYamlText_RejectedAsUnreadable()
+    {
+        var ex = ExpectInvalid("name: 'unterminated");
+
+        Assert.That(ex.Message, Does.StartWith("'provided YAML' could not be read as a job configuration"));
+    }
+
+    [Test]
+    public void MalformedYamlFile_RejectedNamingThePath()
+    {
+        string path = Path.Combine(_dir, $"{Guid.NewGuid():N}.yaml");
+        File.WriteAllText(path, "name: 'unterminated");
+
+        var ex = Assert.Throws<ConfigurationException>(() => ConfigLoader.Load(path, _registry));
+
+        Assert.That(ex.Message, Does.StartWith($"'{path}' could not be read as a job configuration"));
+    }
+
+    [Test]
+    public void EmptyYamlText_RejectedNamingItAsEmpty()
+        => ExpectInvalid("", "The configuration is empty.");
+
+    private SiteJob Load(string yaml) => ConfigLoader.Parse(yaml, _registry);
 
     private ConfigurationException ExpectInvalid(string yaml, params string[] fragments)
     {
-        string path = Path.Combine(_dir, $"{Guid.NewGuid():N}.yaml");
-        File.WriteAllText(path, yaml);
-
-        var ex = Assert.Throws<ConfigurationException>(() => ConfigLoader.Load(path, _registry));
+        var ex = Assert.Throws<ConfigurationException>(() => ConfigLoader.Parse(yaml, _registry));
         foreach (string fragment in fragments)
             Assert.That(ex!.Message, Does.Contain(fragment), $"expected the error to mention: {fragment}");
 
