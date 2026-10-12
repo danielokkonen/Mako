@@ -50,6 +50,17 @@ if [[ -n "$dupes" ]]; then
   exit 1
 fi
 
+# A stem made only of punctuation (e.g. ---.yaml) sanitizes to a name that is not a valid compose service name.
+bad=()
+for i in "${!files[@]}"; do
+  [[ "${names[$i]}" =~ ^[a-z0-9][a-z0-9._-]*$ ]] || bad+=("${files[$i]}")
+done
+if (( ${#bad[@]} > 0 )); then
+  echo "error: these job configs sanitize to invalid compose service names (must start with a letter or digit):" >&2
+  printf '  %s\n' "${bad[@]}" >&2
+  exit 1
+fi
+
 read -r -p "Host port for Postgres [5432]: " PORT
 PORT="${PORT:-5432}"
 
