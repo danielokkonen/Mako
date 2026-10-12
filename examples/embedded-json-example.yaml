@@ -1,0 +1,29 @@
+name: Example Listings
+url: "https://example.com/search?category=1"
+table: example_listings
+source:
+  kind: embedded-json
+  items: .docs
+  marker: <script type="application/json" data-page-data>
+  anchor: '$.state.data'
+fields:
+  - name: id
+    source: .id
+    type: long
+  - name: title
+    source: .title
+    type: text
+    default: ""
+  - name: price
+    source: .price.amount
+    type: integer
+  - name: updated_at
+    source: .updated_at
+    type: date
+    default: "1970-01-01T00:00:00Z"
+key: [id]
+pagination:
+  strategy: page-param
+  param: page
+  current: .paging.current
+  last: .paging.last

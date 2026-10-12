@@ -11,8 +11,11 @@ trim_trailing_whitespace = true
 [*.md]
 trim_trailing_whitespace = false
 
-[*.{csproj,props,json,slnx,xml,yml,yaml}]
+[*.{csproj,props,json,slnx}]
 indent_size = 4
+
+[*.{yml,yaml}]
+indent_size = 2
 
 [*.cs]
 csharp_style_namespace_declarations = file_scoped:suggestion

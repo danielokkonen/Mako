@@ -29,6 +29,6 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: src/Mako.Host/Dockerfile
+          file: examples/Dockerfile
           push: true
           tags: ${{ steps.img.outputs.name }}:latest
