@@ -30,6 +30,26 @@ if (( ${#files[@]} == 0 )); then
   exit 1
 fi
 
+# Service names derive from file stems; two files sanitizing to the same name would produce an invalid compose file.
+names=()
+for f in "${files[@]}"; do
+  stem="${f##*/}"
+  stem="${stem%.*}"
+  names+=("$(printf '%s' "$stem" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9._-' '-')")
+done
+dupes="$(printf '%s\n' "${names[@]}" | sort | uniq -d)"
+if [[ -n "$dupes" ]]; then
+  echo "error: multiple job configs sanitize to the same service name; rename one of each pair:" >&2
+  while IFS= read -r dupe; do
+    for i in "${!files[@]}"; do
+      if [[ "${names[$i]}" == "$dupe" ]]; then
+        echo "  $dupe <- ${files[$i]}" >&2
+      fi
+    done
+  done <<< "$dupes"
+  exit 1
+fi
+
 read -r -p "Host port for Postgres [5432]: " PORT
 PORT="${PORT:-5432}"
 
@@ -39,6 +59,7 @@ PORT="${PORT:-5432}"
 # deny such mounts anyway).
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
+trap 'rm -rf "$BUILD_DIR"' EXIT
 cp -r "$ROOT/src" "$BUILD_DIR/"
 cp "$ROOT/examples/Dockerfile" "$BUILD_DIR/Dockerfile"
 
@@ -63,10 +84,10 @@ cp "$ROOT/examples/Dockerfile" "$BUILD_DIR/Dockerfile"
   echo "      interval: 5s"
   echo "      timeout: 3s"
   echo "      retries: 10"
-  for f in "${files[@]}"; do
+  for i in "${!files[@]}"; do
+    f="${files[$i]}"
     base="$(basename "$f")"
-    stem="${base%.*}"
-    name="$(printf '%s' "$stem" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9._-' '-')"
+    name="${names[$i]}"
     read -r -p "Cron schedule for $base (empty = run once and stop): " SCHED
     RESTART='"no"'
     echo ""
@@ -104,5 +125,3 @@ echo "Wrote $GENERATED — starting the stack with $TOOL…"
 $TOOL compose -f "$GENERATED" up -d --build
 echo
 echo "Stack is up. Manage it with: $TOOL compose -f \"$GENERATED\" <logs|down>"
-
-rm -rf "$BUILD_DIR"
