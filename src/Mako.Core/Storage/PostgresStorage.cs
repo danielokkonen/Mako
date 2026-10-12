@@ -10,7 +10,7 @@ public static class PostgresStorage
     public const string EnvironmentVariable = "MAKO_CONNECTION_STRING";
 
     /// <summary>The local dev database: `podman compose -f dev/compose.yaml up -d db`.</summary>
-    public const string LocalDevConnectionString = "Host=localhost;Port=5432;Username=user;Password=password;Database=mako";
+    public const string LocalDevConnectionString = "Host=localhost;Port=5433;Username=user;Password=password;Database=mako";
 
     public static string ConnectionString
     {
