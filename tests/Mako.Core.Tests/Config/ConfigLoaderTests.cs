@@ -622,6 +622,17 @@ public class ConfigLoaderTests
     }
 
     [Test]
+    public void MalformedYamlFile_RejectedNamingThePath()
+    {
+        string path = Path.Combine(_dir, $"{Guid.NewGuid():N}.yaml");
+        File.WriteAllText(path, "name: 'unterminated");
+
+        var ex = Assert.Throws<ConfigurationException>(() => ConfigLoader.Load(path, _registry));
+
+        Assert.That(ex.Message, Does.StartWith($"'{path}' could not be read as a job configuration"));
+    }
+
+    [Test]
     public void EmptyYamlText_RejectedNamingItAsEmpty()
         => ExpectInvalid("", "The configuration is empty.");
 
