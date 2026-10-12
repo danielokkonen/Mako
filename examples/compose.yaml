@@ -12,7 +12,7 @@ services:
     volumes:
       - mako-example-db:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d mako"]
+      test: ["CMD-SHELL", "pg_isready -U mako -d mako"]
       interval: 5s
       timeout: 3s
       retries: 10
