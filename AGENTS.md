@@ -18,7 +18,7 @@ dotnet run --project src/Mako.Host -- examples/<site>.yaml [snapshot.json | snap
 ```
 
 - The start URL comes from the config file; there is no central dispatcher. Run a job by pointing the host at its config.
-- Data is **always** persisted to the shared Postgres database (see below). The optional 2nd argument additionally writes a JSON/Markdown snapshot file.
+- Data is **always** persisted to the shared Postgres database (see below). A snapshot file can additionally be written via the positional OUTPUT argument or `--output <file>`; with `--yaml` use `--output`, since a bare positional value would be interpreted as CONFIG.
 - Jobs exit non-zero if any page failed (robots denial, HTTP error after retries, circuit breaker). The runner stops at the first failed page (a failed fetch breaks the pagination chain) but still saves whatever was collected.
 
 ### Database / containers

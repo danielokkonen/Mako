@@ -60,7 +60,7 @@ dotnet run --project src/Mako.Host -- examples/dom-source-example.yaml [snapshot
 ```
 
 - There is no central dispatcher — you run a job by pointing the host at its config: either a YAML file path (the positional argument) or raw YAML text via `--yaml <raw yaml>`; exactly one of the two is required.
-- Data is **always** persisted to the shared Postgres database (connection string resolution below). The optional 2nd argument additionally writes a snapshot file.
+- Data is **always** persisted to the shared Postgres database (connection string resolution below). A snapshot file can additionally be written via the positional OUTPUT argument or `--output <file>`; with `--yaml` use `--output`, since a bare positional value would be interpreted as CONFIG.
 - Jobs exit non-zero if any page failed (robots denial, HTTP error after retries, circuit breaker open). A failed fetch breaks the pagination chain but whatever was collected is still saved.
 
 ### Database connection
@@ -100,8 +100,9 @@ A scraper job is a single YAML file. Adding a site never requires C#: write the 
 3. **Run it** — run the built binary directly:
 
    ```bash
-   ./Mako.Host <job.yaml>            # persist to Postgres
-   ./Mako.Host <job.yaml> out.json   # additionally write a snapshot (.json or .md by extension)
+   ./Mako.Host <job.yaml>                        # persist to Postgres
+   ./Mako.Host <job.yaml> out.json               # additionally write a snapshot (.json or .md by extension)
+   ./Mako.Host --yaml '<raw yaml>' --output out.json   # snapshots with raw YAML need --output (no positional OUTPUT)
    ```
 
    The start URL comes from the config file. Jobs exit non-zero if any page failed (robots denial, HTTP error after retries, circuit breaker open); stderr names the URL and reason. A failed fetch breaks the pagination chain but whatever was collected is still saved. Success prints `Done in …s: N items from M page(s)`.
