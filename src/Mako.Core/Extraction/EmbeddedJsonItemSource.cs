@@ -41,8 +41,10 @@ public sealed class EmbeddedJsonItemSource(IEnumerable<IFieldTransform> transfor
 
         var itemArray = itemArrays[0];
 
-        // Parsed once per page, not per item.
-        var fieldSelectors = job.Fields.Select(f => (Field: f, Selector: JsonPaths.Parse(f.Source, $"field '{f.Name}' source path"))).ToList();
+        // Parsed once per page, not per item; constant fields have no selector and take their value from the default.
+        var fieldSelectors = job.Fields.Where(f => f.Source is not null)
+            .Select(f => (Field: f, Selector: JsonPaths.Parse(f.Source!, $"field '{f.Name}' source path")))
+            .ToList();
 
         var items = new List<ScrapedItem>(itemArray.GetArrayLength());
         int position = 0;

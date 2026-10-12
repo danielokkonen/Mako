@@ -60,6 +60,8 @@ root.SetAction(async parseResult =>
 
     var services = new ServiceCollection();
     services.AddSingleton<IFieldTransform, StripCurlyQuotesTransform>();
+    services.AddSingleton<IFieldTransform, NormalizeWhitespaceTransform>();
+    services.AddSingleton<IFieldTransform, DecimalCommaTransform>();
     services.AddSingleton<IItemSource, DomItemSource>();
     services.AddSingleton<IItemSource, EmbeddedJsonItemSource>();
     services.AddSingleton<IPaginationStrategy, NextLinkPagination>();

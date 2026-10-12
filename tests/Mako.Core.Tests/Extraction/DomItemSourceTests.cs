@@ -28,7 +28,10 @@ public class DomItemSourceTests
             var tags1 = (IReadOnlyList<object?>)page.Items[1].Fields["tags"]!;
             Assert.That(tags0, Is.EqualTo(new object?[] { "a", "b" }));
             Assert.That(tags1, Is.EqualTo(new object?[] { "c" }));
-            Assert.That(page.Items[2].Fields["tags"], Is.Null);
+
+            // Item 3 has no .tag of its own: the list falls back to page level and collects every match there.
+            var tags2 = (IReadOnlyList<object?>)page.Items[2].Fields["tags"]!;
+            Assert.That(tags2, Is.EqualTo(new object?[] { "a", "b", "c" }));
         });
     }
 
@@ -45,6 +48,109 @@ public class DomItemSourceTests
         var page = await source.ExtractAsync(html, PageUrl, Job(transform: "strip-curly-quotes"));
 
         Assert.That(page.Items[0].Fields["title"], Is.EqualTo("Hello"));
+    }
+
+    [Test]
+    public async Task AttributeField_ReadsAttributeValueInsteadOfText()
+    {
+        string html = """
+            <html><body>
+              <div class="item"><input id="picker" type="date" value="2026-10-13">fallback text</div>
+            </body></html>
+            """;
+
+        var page = await new DomItemSource([]).ExtractAsync(html, PageUrl, FieldJob(DateField()));
+
+        Assert.That(page.Items[0].Fields["date"], Is.EqualTo("2026-10-13"));
+    }
+
+    [Test]
+    public async Task AttributeField_AbsentAttribute_IsNull()
+    {
+        string html = """
+            <html><body>
+              <div class="item"><span class="title">t</span><input id="picker" type="date"></div>
+            </body></html>
+            """;
+
+        var page = await new DomItemSource([]).ExtractAsync(html, PageUrl, FieldJob(Title(), DateField()));
+
+        Assert.That(page.Items[0].Fields["date"], Is.Null);
+    }
+
+    [Test]
+    public async Task AttributeField_AbsentElement_TakesDefault()
+    {
+        string html = """
+            <html><body>
+              <div class="item"><span class="title">t</span></div>
+            </body></html>
+            """;
+
+        var page = await new DomItemSource([]).ExtractAsync(html, PageUrl, FieldJob(Title(), DateField("1970-01-01")));
+
+        Assert.That(page.Items[0].Fields["date"], Is.EqualTo("1970-01-01"));
+    }
+
+    [Test]
+    public async Task PageLevelSelector_FallsBackToDocument()
+    {
+        string html = """
+            <html><body>
+              <input id="picker" type="date" value="2026-10-13">
+              <div class="item"><span class="title">one</span></div>
+              <div class="item"><span class="title">two</span></div>
+            </body></html>
+            """;
+
+        var page = await new DomItemSource([]).ExtractAsync(html, PageUrl, FieldJob(Title(), DateField()));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(page.Items[0].Fields["date"], Is.EqualTo("2026-10-13"));
+            Assert.That(page.Items[1].Fields["date"], Is.EqualTo("2026-10-13"));
+        });
+    }
+
+    [Test]
+    public async Task ItemLevelMatch_WinsOverDocumentFallback()
+    {
+        string html = """
+            <html><body>
+              <div class="item"><span class="title">one</span><span class="meta">in-item-one</span></div>
+              <div class="item"><span class="title">two</span><span class="meta">in-item-two</span></div>
+            </body></html>
+            """;
+
+        var meta = new FieldMapping("meta", ".meta", FieldType.Text, null, null, false);
+        var page = await new DomItemSource([]).ExtractAsync(html, PageUrl, FieldJob(Title(), meta));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(page.Items[0].Fields["meta"], Is.EqualTo("in-item-one"));
+            Assert.That(page.Items[1].Fields["meta"], Is.EqualTo("in-item-two"));
+        });
+    }
+
+    [Test]
+    public async Task PageLevelListSelector_FallsBackToDocument()
+    {
+        string html = """
+            <html><body>
+              <ul id="nav"><li>one</li><li>two</li></ul>
+              <div class="item"><span class="title">t1</span></div>
+              <div class="item"><span class="title">t2</span></div>
+            </body></html>
+            """;
+
+        var links = new FieldMapping("links", "#nav li", FieldType.Text, null, null, true);
+        var page = await new DomItemSource([]).ExtractAsync(html, PageUrl, FieldJob(Title(), links));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That((IReadOnlyList<object?>)page.Items[0].Fields["links"]!, Is.EqualTo(new object?[] { "one", "two" }));
+            Assert.That((IReadOnlyList<object?>)page.Items[1].Fields["links"]!, Is.EqualTo(new object?[] { "one", "two" }));
+        });
     }
 
     [Test]
@@ -65,4 +171,13 @@ public class DomItemSourceTests
         return new("test", PageUrl, "test_table",
             new SourceConfig("dom", ".item", null, null), [title, tags], ["title"], null, null, null);
     }
+
+    private static SiteJob FieldJob(params FieldMapping[] fields) =>
+        new("test", PageUrl, "test_table",
+            new SourceConfig("dom", ".item", null, null), fields, [fields[0].Name], null, null, null);
+
+    private static FieldMapping Title() => new("title", ".title", FieldType.Text, null, null, false);
+
+    private static FieldMapping DateField(string? defaultValue = null) =>
+        new("date", "#picker", FieldType.Text, null, defaultValue, false, "value");
 }

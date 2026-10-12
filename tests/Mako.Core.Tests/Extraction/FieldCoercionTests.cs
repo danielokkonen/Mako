@@ -128,6 +128,20 @@ public class FieldCoercionTests
     }
 
     [Test]
+    public void BuildItem_ConstantKeyField_TakesCoercedDefaultAndFormsKey()
+    {
+        var job = Job(["city", "title"], City(), Title());
+
+        var item = FieldCoercion.BuildItem(Raw(("title", "t1")), job, 1);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(item.Fields["city"], Is.EqualTo("Uppsala"));
+            Assert.That(item.Key, Is.EqualTo("Uppsala\u001Ft1"));
+        });
+    }
+
+    [Test]
     public void BuildItem_ListField_Matches_CoercedElementList()
     {
         var job = Job(["title"], Title(), Tags());
@@ -184,6 +198,7 @@ public class FieldCoercionTests
     private static Dictionary<string, object?> Raw(params (string Name, object? Value)[] fields) =>
         fields.ToDictionary(f => f.Name, f => f.Value);
 
+    private static FieldMapping City() => new("city", null, FieldType.Text, null, "Uppsala", false);
     private static FieldMapping Title() => new("title", ".title", FieldType.Text, null, null, false);
     private static FieldMapping Count() => new("count", ".count", FieldType.Integer, null, 7L, false);
     private static FieldMapping Price() => new("price", ".price", FieldType.Real, null, null, false);

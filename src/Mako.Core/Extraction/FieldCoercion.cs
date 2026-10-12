@@ -6,9 +6,10 @@ namespace Mako.Core.Extraction;
 
 /// <summary>
 /// Coerces raw extracted values to the field types declared by a job, applies defaults for absent or
-/// uncoercible non-key fields, and enforces natural-key integrity. Shared by all item sources:
-/// sources hand in already-transformed raw values (list fields as <see cref="IReadOnlyList{T}"/> of
-/// elements) keyed by declared field name; this produces the final typed document.
+/// uncoercible non-key fields, and enforces natural-key integrity. Constant fields (no source) take
+/// their value from the declared default before key validation, so they can form part of the natural
+/// key. Shared by all item sources: sources hand in already-transformed raw values (list fields as
+/// <see cref="IReadOnlyList{T}"/> of elements) keyed by declared field name; this produces the final typed document.
 /// </summary>
 public static class FieldCoercion
 {
@@ -36,7 +37,9 @@ public static class FieldCoercion
             }
             else
             {
-                object? value = rawFields.TryGetValue(field.Name, out var raw) ? Coerce(raw, field.Type) : null;
+                // Constant fields (no source) take their value from the declared default.
+                object? raw = field.Source is null ? field.Default : rawFields.TryGetValue(field.Name, out var extracted) ? extracted : null;
+                object? value = Coerce(raw, field.Type);
 
                 if (value is null && job.Key.Contains(field.Name))
                     throw new PageExtractionException($"item {position}: key field '{field.Name}' is missing or uncoercible as type '{field.Type}'");
