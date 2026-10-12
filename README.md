@@ -41,6 +41,7 @@ A config-driven scraping engine built on .NET 10 and AngleSharp. A shared core l
 | `examples/dom-source-example.yaml` | Job for https://quotes.toscrape.com (dom source, next-link pagination) |
 | `examples/embedded-json-example.yaml` | Synthetic job showcasing the embedded-json source + page-param pagination (not wired into compose — no live site behind it) |
 | `examples/compose.yaml` | Prod compose file: a Postgres service plus one service per example job |
+| `scripts/setup.sh` | Interactive prod setup for Linux: collects job configs from `~/.local/share/Mako`, generates `mako.compose.yaml` next to them, and starts the stack (see [Containers](#containers)) |
 | `tests/Mako.Core.Tests` | NUnit unit tests mirroring the production folder structure (`Config/`, `Extraction/`, `Pagination/`, `Storage/`, `Transforms/`) — no Postgres or network required |
 
 ## Requirements
@@ -87,6 +88,14 @@ podman compose -f examples/compose.yaml up -d --build   # or: docker compose -f 
 - A `db` service (Postgres with its own volume) plus one service per example job — same image, no configs baked in; each service's command passes the job as raw YAML via `--yaml` (a block scalar, so no quoting issues) plus optional `--schedule '<cron>'`, and env.
 - Cron time zone comes from the `TZ` env var (`MAKO_TZ`, defaults to UTC).
 
+`scripts/setup.sh` is an interactive alternative for running jobs in containers on a Linux host with podman or docker: copy your job configs into `~/.local/share/Mako` (override the directory with `MAKO_CONFIG_DIR`) and run it. It prompts for the Postgres host port and an optional cron schedule per config, then:
+
+- generates `mako.compose.yaml` next to the configs — a Postgres service plus one service per config, same image as above; each command passes its config as raw YAML via `--yaml`, so no bind mounts of the config dir are needed
+- stages a build context in `$CONFIG_DIR/mako-build` (app sources + `examples/Dockerfile`) and removes it on exit
+- starts the stack with `compose up -d --build`
+
+Configs are baked into the generated file rather than mounted — re-run the script after editing a config to apply it.
+
 ## Adding a new site job
 
 A scraper job is a single YAML file. Adding a site never requires C#: write the YAML, run it — the data and history tables are created automatically at job start (`CREATE TABLE IF NOT EXISTS`), so there is nothing to migrate. The whole config is validated before any network or database access; when validation fails, every problem is reported together, each naming the offending element.
@@ -97,9 +106,11 @@ A scraper job is a single YAML file. Adding a site never requires C#: write the 
    - Decide the **natural key**: the declared fields whose combined values uniquely identify an item across runs (e.g. an id, or `text` + `author`). Key fields must always be present and coercible — items missing them fail the page.
    - Identify pagination: a "next" link in the DOM (`next-link`), or a page number embedded in the payload plus a URL query parameter (`page-param`, embedded-json only). Omit pagination entirely for single-page jobs.
 2. **Write one YAML file for the job** using the keys below (see [Worked examples](#worked-examples)).
-3. **Run it** — run the built binary directly:
+3. **Run it** — run the apphost binary directly:
 
    ```bash
+   dotnet publish src/Mako.Host -c Release -o mako-host   # same command the Dockerfile uses; produces ./mako-host/Mako.Host
+   cd mako-host
    ./Mako.Host <job.yaml>                        # persist to Postgres
    ./Mako.Host <job.yaml> out.json               # additionally write a snapshot (.json or .md by extension)
    ./Mako.Host --yaml '<raw yaml>' --output out.json   # snapshots with raw YAML need --output (no positional OUTPUT)

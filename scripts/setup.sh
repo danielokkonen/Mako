@@ -63,6 +63,22 @@ fi
 
 read -r -p "Host port for Postgres [5432]: " PORT
 PORT="${PORT:-5432}"
+if ! [[ "$PORT" =~ ^[0-9]{1,5}$ ]] || (( 10#$PORT < 1 || 10#$PORT > 65535 )); then
+  echo "error: host port must be a number between 1 and 65535 (got '$PORT')" >&2
+  exit 1
+fi
+
+# Schedules are collected up front so a bad answer fails before the generated file is truncated.
+schedules=()
+for f in "${files[@]}"; do
+  base="$(basename "$f")"
+  read -r -p "Cron schedule for $base (empty = run once and stop): " SCHED
+  if [[ "$SCHED" == *'"'* || "$SCHED" == *'\'* || "$SCHED" == *$'\n'* ]]; then
+    echo "error: cron schedule for $base contains a character that would break the generated compose file (no double quotes, backslashes or newlines): '$SCHED'" >&2
+    exit 1
+  fi
+  schedules+=("$SCHED")
+done
 
 # Stage a build context: app sources plus the repo's Dockerfile. No configs are baked into the
 # image and no bind mount of $CONFIG_DIR is needed — each service passes its config as raw YAML
@@ -97,9 +113,8 @@ cp "$ROOT/examples/Dockerfile" "$BUILD_DIR/Dockerfile"
   echo "      retries: 10"
   for i in "${!files[@]}"; do
     f="${files[$i]}"
-    base="$(basename "$f")"
     name="${names[$i]}"
-    read -r -p "Cron schedule for $base (empty = run once and stop): " SCHED
+    SCHED="${schedules[$i]}"
     RESTART='"no"'
     echo ""
     echo "  $name:"

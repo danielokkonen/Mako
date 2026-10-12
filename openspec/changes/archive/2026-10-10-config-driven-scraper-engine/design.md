@@ -11,7 +11,7 @@ See proposal.md for motivation and scope.
 ## Goals / Non-Goals
 
 **Goals:**
-- A new job = one YAML file under `configs/`; zero C# written or compiled per site.
+- A new job = one YAML file under `examples/`; zero C# written or compiled per site.
 - Document-first Postgres storage: jsonb document as canonical record, natural-key upsert, append-only per-version history, never-delete semantics, point-in-time recoverability.
 - One engine library + one host executable; one Docker image for every job.
 - Pre-shaped extensibility: all config strategy fields resolve through a DI capability registry so future C# capabilities need no engine or config-syntax change.
@@ -71,7 +71,7 @@ The existing run loop is reused as-is: 50-page cap, visited-set cycle detection 
 System.CommandLine 2.0.12 model-based API (`RootCommand`, `SetAction(parseResult => …)`, `parseResult.GetValue<T>`), Cronos for `--schedule` with immediate catch-up run, SIGTERM via apphost binary (Dockerfile builds the apphost; `dotnet <dll>` would let the muxer eat SIGTERM). CLI shape: `<config.yaml> [output] [--schedule '<cron>']`; start URL comes from config.
 
 ### D10: One image, Postgres service in compose
-Single Dockerfile for the host apphost. Compose: one Postgres service (own volume) + one service per config file — same image, different command (`configs/x.yaml`) and env (`TZ`, connection string). The `/data` named volume is removed; dev = `podman compose up -d db` plus running jobs against the local instance.
+Single Dockerfile for the host apphost. Compose: one Postgres service (own volume) + one service per config file — same image, different command (`examples/<site>.yaml`) and env (`TZ`, connection string). The `/data` named volume is removed; dev = `podman compose up -d db` plus running jobs against the local instance.
 
 ## Risks / Trade-offs
 
@@ -85,7 +85,7 @@ Single Dockerfile for the host apphost. Compose: one Postgres service (own volum
 ## Migration Plan
 
 1. Build engine library + host against the new storage (fresh local Postgres via compose).
-2. Author the two example job configs (`examples/quotes.yaml` + the live-listings config); live-run both; verify item counts match current behavior, second run writes nothing, history rows appear only on real change.
+2. Author the two example job configs (`examples/dom-source-example.yaml` + the live-listings config); live-run both; verify item counts match current behavior, second run writes nothing, history rows appear only on real change.
 3. Cutover: delete both job projects, typed entities, `ScraperDbContext`, `Migrations/`, EF packages; update solution file, Dockerfile, and compose (Postgres service in, `/data` volume out).
 4. Deploy via `podman compose up -d --build`; fresh Postgres database is the new source of truth.
 
