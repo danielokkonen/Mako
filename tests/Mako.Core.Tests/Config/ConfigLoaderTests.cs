@@ -407,6 +407,166 @@ public class ConfigLoaderTests
             """, "key field 'tags' cannot be marked as a list field");
 
     [Test]
+    public void ConstantField_WithDefault_LoadsAsNullSource()
+    {
+        var job = Load("""
+            name: test job
+            url: https://example.com/list
+            table: listings
+            source:
+              kind: dom
+              items: .item
+            fields:
+              - name: city
+                type: text
+                default: Uppsala
+            key:
+              - city
+            """);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(job.Fields[0].Source, Is.Null);
+            Assert.That(job.Fields[0].Default, Is.EqualTo("Uppsala"));
+            Assert.That(job.Key, Is.EqualTo(["city"]));
+        });
+    }
+
+    [Test]
+    public void ConstantField_WithoutDefault_Rejected()
+        => ExpectInvalid("""
+            name: test job
+            url: https://example.com/list
+            table: listings
+            source:
+              kind: dom
+              items: .item
+            fields:
+              - name: city
+                type: text
+            key:
+              - city
+            """, "a constant field (no 'source') requires a 'default' value");
+
+    [Test]
+    public void ConstantField_WithListFlag_Rejected()
+        => ExpectInvalid("""
+            name: test job
+            url: https://example.com/list
+            table: listings
+            source:
+              kind: dom
+              items: .item
+            fields:
+              - name: city
+                type: text
+                default: Uppsala
+                list: true
+            key:
+              - city
+            """, "a constant field (no 'source') cannot be marked as a list field");
+
+    [Test]
+    public void ConstantField_WithTransform_Rejected()
+        => ExpectInvalid("""
+            name: test job
+            url: https://example.com/list
+            table: listings
+            source:
+              kind: dom
+              items: .item
+            fields:
+              - name: city
+                type: text
+                default: Uppsala
+                transform: strip-curly-quotes
+            key:
+              - city
+            """, "'transform' has no effect on a constant field (no 'source')");
+
+    [Test]
+    public void AttributeField_WithSource_Loads()
+    {
+        var job = Load("""
+            name: test job
+            url: https://example.com/list
+            table: listings
+            source:
+              kind: dom
+              items: .item
+            fields:
+              - name: date
+                source: "#picker"
+                attribute: value
+                type: text
+            key:
+              - date
+            """);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(job.Fields[0].Source, Is.EqualTo("#picker"));
+            Assert.That(job.Fields[0].Attribute, Is.EqualTo("value"));
+        });
+    }
+
+    [Test]
+    public void AttributeField_EmptyName_Rejected()
+        => ExpectInvalid("""
+            name: test job
+            url: https://example.com/list
+            table: listings
+            source:
+              kind: dom
+              items: .item
+            fields:
+              - name: date
+                source: "#picker"
+                attribute: ""
+                type: text
+            key:
+              - date
+            """, "'attribute' must be a non-empty attribute name");
+
+    [Test]
+    public void AttributeField_WithEmbeddedJsonSource_Rejected()
+        => ExpectInvalid("""
+            name: test job
+            url: https://example.com/list
+            table: listings
+            source:
+              kind: embedded-json
+              marker: '<script id="data">'
+              anchor: .page
+              items: .items
+            fields:
+              - name: date
+                source: .date
+                attribute: value
+                type: text
+            key:
+              - date
+            """, "'attribute' cannot be combined with an 'embedded-json' source");
+
+    [Test]
+    public void AttributeField_WithoutSource_Rejected()
+        => ExpectInvalid("""
+            name: test job
+            url: https://example.com/list
+            table: listings
+            source:
+              kind: dom
+              items: .item
+            fields:
+              - name: date
+                attribute: value
+                type: text
+                default: 1970-01-01
+            key:
+              - date
+            """, "'attribute' has no effect without a 'source'");
+
+    [Test]
     public void NextLinkWithoutSelector_Rejected()
         => ExpectInvalid("""
             name: test job

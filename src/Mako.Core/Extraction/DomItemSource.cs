@@ -8,8 +8,12 @@ namespace Mako.Core.Extraction;
 /// <summary>
 /// The <c>dom</c> item source: items are the elements matched by the configured CSS selector. Scalar
 /// fields read a sub-element's trimmed text within each item element; list fields collect every match
-/// in document order (zero matches means absent, so the default/null path applies). A page whose
-/// items selector matches nothing fails the page, naming the selector.
+/// in document order (zero matches means absent, so the default/null path applies). When a field's
+/// selector matches nothing inside an item it falls back to the same selector at page level, so one
+/// mapping can carry both row-level and page-level values. A field with <see cref="FieldMapping.Attribute"/>
+/// reads that attribute of the matched element instead of its text content; an absent element or
+/// attribute still flows to the default/null path. A page whose items selector matches nothing fails
+/// the page, naming the selector.
 /// </summary>
 public sealed class DomItemSource(IEnumerable<IFieldTransform> transforms) : IItemSource
 {
@@ -30,34 +34,46 @@ public sealed class DomItemSource(IEnumerable<IFieldTransform> transforms) : IIt
         var items = new List<ScrapedItem>(itemElements.Count);
         for (int position = 0; position < itemElements.Count; position++)
         {
-            var rawFields = BuildRawFields(itemElements[position], job);
+            var rawFields = BuildRawFields(itemElements[position], document, job);
             items.Add(FieldCoercion.BuildItem(rawFields, job, position + 1));
         }
 
         return Task.FromResult(new ScrapedPage(items, document, null));
     }
 
-    private Dictionary<string, object?> BuildRawFields(IElement item, SiteJob job)
+    private Dictionary<string, object?> BuildRawFields(IElement item, IDocument document, SiteJob job)
     {
         var raw = new Dictionary<string, object?>(StringComparer.Ordinal);
 
         foreach (var field in job.Fields)
         {
+            if (field.Source is null)
+                continue; // Constant fields take their value from the declared default.
+
             if (field.List)
             {
-                // Zero matches means absent: the default/null path applies, same as scalar fields.
+                // Zero matches inside the item falls back to page level; zero there means absent, so the
+                // default/null path applies, same as scalar fields.
                 var elements = item.QuerySelectorAll(field.Source);
+                if (elements.Count == 0)
+                    elements = document.QuerySelectorAll(field.Source);
                 if (elements.Count > 0)
-                    raw[field.Name] = elements.Select(e => TransformApplier.Apply(_transforms, field.Transform, e.TextContent.Trim())).ToList();
+                    raw[field.Name] = elements.Select(e => ReadValue(e, field)).ToList();
             }
             else
             {
-                IElement? element = item.QuerySelector(field.Source);
-                object? value = element is null ? null : TransformApplier.Apply(_transforms, field.Transform, element.TextContent.Trim());
+                IElement? element = item.QuerySelector(field.Source) ?? document.QuerySelector(field.Source);
+                object? value = element is null ? null : ReadValue(element, field);
                 raw[field.Name] = value;
             }
         }
 
         return raw;
+    }
+
+    private object? ReadValue(IElement element, FieldMapping field)
+    {
+        string? text = field.Attribute is null ? element.TextContent.Trim() : element.GetAttribute(field.Attribute)?.Trim();
+        return TransformApplier.Apply(_transforms, field.Transform, text);
     }
 }
