@@ -34,7 +34,7 @@ dotnet run --project src/Mako.Host -- examples/<site>.yaml [snapshot.json | snap
 
 ### Verification (smoke run)
 
-Full verification = `dotnet build`, `dotnet test` (all green; 155 cases at time of writing), plus the smoke run below against the local dev DB (no podman involved — see above):
+Full verification = `dotnet build`, `dotnet test` (all green; 158 cases at time of writing), plus the smoke run below against the local dev DB (no podman involved — see above):
 
     dotnet run --project src/Mako.Host -- examples/dom-source-example.yaml   # static site: expect 10 pages, 100 items
 
