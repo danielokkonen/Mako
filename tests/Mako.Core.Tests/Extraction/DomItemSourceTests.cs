@@ -93,6 +93,26 @@ public class DomItemSourceTests
     }
 
     [Test]
+    public async Task ConstantField_TakesCoercedDefaultInEveryItem()
+    {
+        string html = """
+            <html><body>
+              <div class="item"><span class="title">one</span></div>
+              <div class="item"><span class="title">two</span></div>
+            </body></html>
+            """;
+
+        var constant = new FieldMapping("category", null, FieldType.Integer, null, "42", false);
+        var page = await new DomItemSource([]).ExtractAsync(html, PageUrl, FieldJob(Title(), constant));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(page.Items[0].Fields["category"], Is.EqualTo(42));
+            Assert.That(page.Items[1].Fields["category"], Is.EqualTo(42));
+        });
+    }
+
+    [Test]
     public async Task PageLevelSelector_FallsBackToDocument()
     {
         string html = """
@@ -117,6 +137,7 @@ public class DomItemSourceTests
     {
         string html = """
             <html><body>
+              <span class="meta">page-level</span>
               <div class="item"><span class="title">one</span><span class="meta">in-item-one</span></div>
               <div class="item"><span class="title">two</span><span class="meta">in-item-two</span></div>
             </body></html>
@@ -129,6 +150,26 @@ public class DomItemSourceTests
         {
             Assert.That(page.Items[0].Fields["meta"], Is.EqualTo("in-item-one"));
             Assert.That(page.Items[1].Fields["meta"], Is.EqualTo("in-item-two"));
+        });
+    }
+
+    [Test]
+    public async Task ListFieldWithAttribute_ReadsAttributePerElement_AbsentIsNull()
+    {
+        string html = """
+            <html><body>
+              <div class="item"><span class="title">one</span><a class="link" href="/a">A</a><a class="link">B</a></div>
+              <div class="item"><span class="title">two</span><a class="link" href="/c">C</a></div>
+            </body></html>
+            """;
+
+        var links = new FieldMapping("links", ".link", FieldType.Text, null, null, true, "href");
+        var page = await new DomItemSource([]).ExtractAsync(html, PageUrl, FieldJob(Title(), links));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That((IReadOnlyList<object?>)page.Items[0].Fields["links"]!, Is.EqualTo(new object?[] { "/a", null }));
+            Assert.That((IReadOnlyList<object?>)page.Items[1].Fields["links"]!, Is.EqualTo(new object?[] { "/c" }));
         });
     }
 
