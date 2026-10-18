@@ -133,12 +133,33 @@ public static class ConfigLoader
                 else if (!declaredNames.Add(f.Name!))
                     errors.Add($"{label}: field names must be unique");
 
-                if (string.IsNullOrWhiteSpace(f.Source))
-                    errors.Add($"{label}: 'source' is required (CSS sub-selector for 'dom', item-relative JSON path for 'embedded-json')");
-                else if (kind is not null && string.Equals(kind, "dom", StringComparison.OrdinalIgnoreCase) && !IsValidCssSelector(f.Source!))
-                    errors.Add($"{label}: source '{f.Source}' is not a valid CSS selector");
-                else if (isEmbeddedJson)
-                    CheckJsonPath($"{label} source", f.Source!, errors);
+                bool constant = string.IsNullOrWhiteSpace(f.Source);
+                if (constant)
+                {
+                    if (f.Default is null)
+                        errors.Add($"{label}: a constant field (no 'source') requires a 'default' value");
+                    if (f.List)
+                        errors.Add($"{label}: a constant field (no 'source') cannot be marked as a list field");
+                    if (!string.IsNullOrWhiteSpace(f.Attribute))
+                        errors.Add($"{label}: 'attribute' has no effect without a 'source'");
+                    if (!string.IsNullOrWhiteSpace(f.Transform))
+                        errors.Add($"{label}: 'transform' has no effect on a constant field (no 'source')");
+                }
+                else
+                {
+                    if (kind is not null && string.Equals(kind, "dom", StringComparison.OrdinalIgnoreCase) && !IsValidCssSelector(f.Source!))
+                        errors.Add($"{label}: source '{f.Source}' is not a valid CSS selector");
+                    else if (isEmbeddedJson)
+                        CheckJsonPath($"{label} source", f.Source!, errors);
+
+                    if (f.Attribute is not null)
+                    {
+                        if (string.IsNullOrWhiteSpace(f.Attribute))
+                            errors.Add($"{label}: 'attribute' must be a non-empty attribute name");
+                        else if (isEmbeddedJson)
+                            errors.Add($"{label}: 'attribute' cannot be combined with an 'embedded-json' source");
+                    }
+                }
 
                 FieldType type = FieldType.Text;
                 if (string.IsNullOrWhiteSpace(f.Type))
@@ -152,7 +173,8 @@ public static class ConfigLoader
                 if (!string.IsNullOrWhiteSpace(transform) && !capabilities.TryGetTransform(transform!, out _))
                     errors.Add($"{label}: transform '{transform}' is not registered (registered: {capabilities.RegisteredTransforms})");
 
-                fields.Add(new FieldMapping(f.Name ?? "", f.Source ?? "", type, transform, f.Default, f.List));
+                fields.Add(new FieldMapping(f.Name ?? "", constant ? null : f.Source!, type, transform, f.Default, f.List,
+                    string.IsNullOrWhiteSpace(f.Attribute) ? null : f.Attribute));
             }
         }
 
@@ -301,6 +323,7 @@ public static class ConfigLoader
         public string? Transform { get; set; }
         public object? Default { get; set; }
         public bool List { get; set; }
+        public string? Attribute { get; set; }
     }
 
     private sealed class PaginationYaml

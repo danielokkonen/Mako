@@ -42,6 +42,21 @@ public class EmbeddedJsonItemSourceTests
         });
     }
 
+    [Test]
+    public async Task ConstantField_TakesCoercedDefaultInEveryItem()
+    {
+        string html = Html("""{"page": {"items": [{"id": "a"}, {"id": "b"}]}}""");
+
+        var constant = new FieldMapping("category", null, FieldType.Integer, null, "42", false);
+        var page = await new EmbeddedJsonItemSource([]).ExtractAsync(html, PageUrl, Job(["id"], [Id(), constant]));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(page.Items[0].Fields["category"], Is.EqualTo(42));
+            Assert.That(page.Items[1].Fields["category"], Is.EqualTo(42));
+        });
+    }
+
     [TestCase("\"str\"", FieldType.Text, "str")]
     [TestCase("9223372036854775807", FieldType.Long, long.MaxValue)]
     [TestCase("2.5", FieldType.Real, 2.5d)]

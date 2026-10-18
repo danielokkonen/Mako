@@ -34,7 +34,7 @@ dotnet run --project src/Mako.Host -- examples/<site>.yaml [snapshot.json | snap
 
 ### Verification (smoke run)
 
-Full verification = `dotnet build`, `dotnet test` (all green; 125 cases at time of writing), plus the smoke run below against the local dev DB (no podman involved — see above):
+Full verification = `dotnet build`, `dotnet test` (all green; 158 cases at time of writing), plus the smoke run below against the local dev DB (no podman involved — see above):
 
     dotnet run --project src/Mako.Host -- examples/dom-source-example.yaml   # static site: expect 10 pages, 100 items
 
@@ -42,7 +42,7 @@ Success = exit code 0 per job and a `Done in …s: N items from M page(s)` line.
 
 ## Adding a new site job
 
-1. Write `examples/<site>.yaml`: `name`, `url`, `table` (lowercase identifier; history table is `<table>_history`), `source` (`kind: dom` with CSS `items` selector, or `kind: embedded-json` with `marker:` + JSON-path `anchor:` + relative `items` path), `fields` (each: `name`, `source` — CSS sub-selector for dom / relative JSON path for embedded-json —, `type`: text|integer|long|real|date, optional `transform: strip-curly-quotes`, `default`, `list: true`), `key` (field names forming the natural key), and optionally `pagination` (`strategy: next-link` + `selector`, or `strategy: page-param` + `param`/`current`/`last`), an optional `headers:` map, and an optional `cookie:` with `${VAR}` env interpolation.
+1. Write `examples/<site>.yaml`: `name`, `url`, `table` (lowercase identifier; history table is `<table>_history`), `source` (`kind: dom` with CSS `items` selector, or `kind: embedded-json` with `marker:` + JSON-path `anchor:` + relative `items` path), `fields` (each: `name`, optional `source` — CSS sub-selector for dom / relative JSON path for embedded-json; omitting it makes the field constant, which then requires a `default` and rejects `list: true`, `transform:`, and `attribute:` —, `type`: text|integer|long|real|date, optional `transform` (`strip-curly-quotes`, `normalize-whitespace`, `decimal-comma`), `default`, `list: true`; for dom sources an optional `attribute:` reads that HTML attribute of the matched element instead of its text content; a field selector matching nothing inside an item falls back to page level, so one mapping can carry both row-level and page-level values), `key` (field names forming the natural key), and optionally `pagination` (`strategy: next-link` + `selector`, or `strategy: page-param` + `param`/`current`/`last`), an optional `headers:` map, and an optional `cookie:` with `${VAR}` env interpolation.
 2. That's it — the schema is created automatically at job start; nothing to migrate, no C# involved. Optionally add a service entry to `examples/compose.yaml` (same image; command = the job's raw YAML via `--yaml` plus optional `--schedule`, and env).
 
 ## Gotchas
