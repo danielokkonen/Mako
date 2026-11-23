@@ -1,3 +1,5 @@
+<img width="2400" height="765" alt="mako" src="https://github.com/user-attachments/assets/8222cf5e-ca8c-4823-bc7f-ccc785369797" />
+
 # Mako
 
 A config-driven scraping engine built on .NET 10 and AngleSharp. A shared core library handles fetching, politeness (robots.txt), resilience, extraction, pagination, persistence, and scheduling; each target site is a single YAML file under `examples/` — no C# per site.
